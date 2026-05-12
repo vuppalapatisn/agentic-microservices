@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observability-agent
+  namespace: observability-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: observability-agent
+  template:
+    metadata:
+      labels:
+        app: observability-agent
+    spec:
+      containers:
+        - name: observability-agent
+          image: observability-agent:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: observability-agent-config
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10

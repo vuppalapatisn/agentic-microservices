@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observability-agent-config
+  namespace: observability-agent
+data:
+  application.yml: |-
+    observability:
+      loki:
+        base-url: ""
+        timeout-seconds: 5
+      prometheus:
+        base-url: ""
+        timeout-seconds: 5
