@@ -4,11 +4,7 @@ metadata:
   name: observability-agent-config
   namespace: observability-agent
 data:
-  application.yml: |-
-    observability:
-      loki:
-        base-url: ""
-        timeout-seconds: 5
-      prometheus:
-        base-url: ""
-        timeout-seconds: 5
+  OBSERVABILITY_LOKI_BASE_URL: "http://loki.observability.svc.cluster.local:3100"
+  OBSERVABILITY_LOKI_TIMEOUT_SECONDS: "5"
+  OBSERVABILITY_PROMETHEUS_BASE_URL: "http://prometheus.observability.svc.cluster.local:9090"
+  OBSERVABILITY_PROMETHEUS_TIMEOUT_SECONDS: "5"

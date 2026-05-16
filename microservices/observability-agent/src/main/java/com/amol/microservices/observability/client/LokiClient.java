@@ -38,7 +38,7 @@ public class LokiClient {
         }
 
         try {
-            String query = "{namespace=\"ecommerce\"} |= \"" + requestId + "\"";
+            String query = "{namespace=~\"ecommerce|observability-agent\"} |= \"" + escapeLogql(requestId) + "\"";
             List<LogEntryDto> logs = executeQuery(query, start, end).stream()
                     .sorted((a, b) -> a.timestamp().compareTo(b.timestamp()))
                     .toList();
@@ -52,7 +52,7 @@ public class LokiClient {
         if (properties.getLoki().getBaseUrl() == null || properties.getLoki().getBaseUrl().isBlank()) {
             return new LogsResponseDto(null, List.of());
         }
-        String query = "{namespace=\"ecommerce\",app=\"" + serviceName + "\"}";
+        String query = logStreamSelector(serviceName);
         return new LogsResponseDto(null, executeQuery(query, start, end));
     }
 
@@ -60,8 +60,33 @@ public class LokiClient {
         if (properties.getLoki().getBaseUrl() == null || properties.getLoki().getBaseUrl().isBlank()) {
             return new LogsResponseDto(null, List.of());
         }
-        String query = "{namespace=\"ecommerce\",app=\"" + serviceName + "\"} |~ \"ERROR|ERR|error|err\"";
+        String query = logStreamSelector(serviceName) + " |~ \"(?i).*(ERROR|WARN).*\"";
         return new LogsResponseDto(null, executeQuery(query, start, end));
+    }
+
+    static String normalizeLogServiceField(String serviceName) {
+        if (serviceName == null || serviceName.isBlank()) {
+            return "";
+        }
+        String s = serviceName.trim();
+        return switch (s) {
+            case "ecommerce-service" -> "ecommerce";
+            case "product-service" -> "product";
+            case "images-service" -> "images";
+            default -> s;
+        };
+    }
+
+    private String logStreamSelector(String serviceName) {
+        String app = normalizeLogServiceField(serviceName);
+        if ("observability-agent".equals(app)) {
+            return "{namespace=\"observability-agent\",app=\"observability-agent\"}";
+        }
+        return "{namespace=\"ecommerce\",app=\"" + escapeLogql(app) + "\"}";
+    }
+
+    private static String escapeLogql(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private List<LogEntryDto> executeQuery(String query, Instant start, Instant end) {

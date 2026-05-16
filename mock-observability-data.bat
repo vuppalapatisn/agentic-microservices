@@ -33,18 +33,18 @@ if errorlevel 1 (
 )
 
 echo [6/7] Copying generated logs into Promtail...
-for /f %%P in ('kubectl get pods -n observability -l app=promtail -o jsonpath="{.items[0].metadata.name}"') do set "PROMTAIL_POD=%%P"
+for /f "tokens=*" %%P in ('kubectl get pods -n observability -l app=promtail -o jsonpath="{.items[0].metadata.name}"') do set "PROMTAIL_POD=%%P"
 if "%PROMTAIL_POD%"=="" goto :fail
 kubectl exec -n observability %PROMTAIL_POD% -- sh -c "mkdir -p /generated-logs && rm -f /generated-logs/*.log" || goto :fail
 pushd "%ROOT_DIR%\generated-logs"
-kubectl cp . "observability/%PROMTAIL_POD%:/generated-logs" || goto :fail
+for %%F in (*.log) do kubectl cp -n observability "%%~nxF" "%PROMTAIL_POD%:/generated-logs/%%~nxF" || goto :fail
 popd
 
 echo [7/7] Mock data mechanism is ready...
 
 echo.
 echo Mock data load complete.
-echo Metrics replay endpoint: http://localhost:9105/ecommerce.prom
+echo Metrics replay (optional local Python server): port 9105
 goto :eof
 
 :fail

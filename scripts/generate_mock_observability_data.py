@@ -2,13 +2,10 @@ import argparse
 import datetime as dt
 import http.server
 import json
-import math
-import os
 import pathlib
-import random
 import socketserver
-import threading
 import time
+import uuid
 from typing import Dict, List
 
 
@@ -16,17 +13,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 METRICS_DIR = ROOT / "generated-metrics"
 LOGS_DIR = ROOT / "generated-logs"
 STATE_FILE = METRICS_DIR / "manifest.json"
-SEED = 20260513
 SCENARIO_DATE = dt.date(2026, 5, 13)
 SERVICES = ["ecommerce", "product", "images", "observability-agent"]
-METRIC_NAMES = [
-    "jvm_heap_used_mb",
-    "jvm_threads_live",
-    "http_requests_per_second",
-    "http_request_duration_p95",
-    "jvm_gc_pause_seconds",
-    "cpu_usage_percent",
-]
+GC_LABELS = 'action="end of minor GC",cause="G1 Evacuation Pause"'
 
 
 def minute_range() -> List[dt.datetime]:
@@ -80,21 +69,23 @@ def service_multiplier(service: str) -> float:
 
 
 def build_series() -> Dict[str, List[dict]]:
-    rng = random.Random(SEED)
     points = minute_range()
     state = {
-        "ecommerce": {"heap": 340.0, "gc_cycle": 0, "threads": 32},
-        "product": {"heap": 220.0, "gc_cycle": 0, "threads": 22},
-        "images": {"heap": 180.0, "gc_cycle": 0, "threads": 20},
-        "observability-agent": {"heap": 140.0, "gc_cycle": 0, "threads": 14},
+        "ecommerce": {"heap_mb": 340.0, "gc_cycle": 0, "threads": 32},
+        "product": {"heap_mb": 220.0, "gc_cycle": 0, "threads": 22},
+        "images": {"heap_mb": 180.0, "gc_cycle": 0, "threads": 20},
+        "observability-agent": {"heap_mb": 140.0, "gc_cycle": 0, "threads": 14},
     }
-    max_heap = {
+    max_heap_mb = {
         "ecommerce": 820.0,
         "product": 540.0,
         "images": 420.0,
         "observability-agent": 300.0,
     }
     series = {service: [] for service in SERVICES}
+    gc_events = {s: 0 for s in SERVICES}
+    gc_sum = {s: 0.0 for s in SERVICES}
+    http_total = {s: 0 for s in SERVICES}
 
     for timestamp in points:
         minute_of_day = timestamp.hour * 60 + timestamp.minute
@@ -126,29 +117,37 @@ def build_series() -> Dict[str, List[dict]]:
             gc_pause = 0.0
             if full_gc:
                 gc_pause = round(1.4 + (request_rate / 18.0) + (0.3 if service == "ecommerce" else 0.1), 3)
-                state[service]["heap"] = max_heap[service] * (0.32 if service == "ecommerce" else 0.36)
+                state[service]["heap_mb"] = max_heap_mb[service] * (0.32 if service == "ecommerce" else 0.36)
                 state[service]["gc_cycle"] = 0
+                gc_events[service] += 1
+                gc_sum[service] += gc_pause
             else:
                 growth = request_rate * (3.8 if service == "ecommerce" else 2.6 if service == "product" else 2.1 if service == "images" else 1.2)
-                state[service]["heap"] = min(max_heap[service] * 0.92, state[service]["heap"] + growth)
+                state[service]["heap_mb"] = min(max_heap_mb[service] * 0.92, state[service]["heap_mb"] + growth)
 
-            cpu = min(95.0, round(18 + request_rate * (1.4 if service == "ecommerce" else 1.1), 2))
+            http_total[service] += max(1, int(round(request_rate)))
+
             latency = round(180 + request_rate * (12 if service == "ecommerce" else 8), 2)
             if gc_pause > 0:
                 latency += gc_pause * 1100
             if batch_window and service != "observability-agent":
                 latency += 550
 
+            heap_bytes = round(state[service]["heap_mb"] * 1024 * 1024, 3)
+            max_heap_bytes = round(max_heap_mb[service] * 1024 * 1024, 3)
+
             series[service].append(
                 {
                     "timestamp": timestamp.isoformat().replace("+00:00", "Z"),
-                    "jvm_heap_used_mb": round(state[service]["heap"], 2),
-                    "jvm_threads_live": threads,
-                    "http_requests_per_second": round(request_rate, 2),
-                    "http_request_duration_p95": round(latency, 2),
-                    "jvm_gc_pause_seconds": gc_pause,
-                    "cpu_usage_percent": cpu,
+                    "heap_bytes": heap_bytes,
+                    "max_heap_bytes": max_heap_bytes,
+                    "jvm_threads_live_threads": float(threads),
+                    "http_server_requests_seconds_count": float(http_total[service]),
+                    "jvm_gc_pause_seconds_count": float(gc_events[service]),
+                    "jvm_gc_pause_seconds_sum": round(gc_sum[service], 6),
+                    "jvm_gc_pause_seconds_max": round(gc_pause, 6) if gc_pause > 0 else 0.0,
                     "full_gc": full_gc,
+                    "http_request_duration_p95": latency,
                 }
             )
 
@@ -161,11 +160,29 @@ def write_metric_files(series: Dict[str, List[dict]]) -> None:
         for point in points:
             file_name = point["timestamp"].replace(":", "").replace("-", "")
             path = service_dir / f"{file_name}.prom"
-            lines = []
-            for metric_name in METRIC_NAMES:
-                value = point[metric_name]
-                lines.append(f"# TYPE {metric_name} gauge")
-                lines.append(f'{metric_name}{{service="{service}"}} {value}')
+            lines = [
+                "# HELP jvm_memory_used_bytes Used heap memory",
+                "# TYPE jvm_memory_used_bytes gauge",
+                f'jvm_memory_used_bytes{{area="heap",id="mock"}} {point["heap_bytes"]}',
+                "# HELP jvm_memory_max_bytes Max heap memory",
+                "# TYPE jvm_memory_max_bytes gauge",
+                f'jvm_memory_max_bytes{{area="heap",id="mock"}} {point["max_heap_bytes"]}',
+                "# HELP jvm_threads_live_threads Live thread count",
+                "# TYPE jvm_threads_live_threads gauge",
+                f'jvm_threads_live_threads {point["jvm_threads_live_threads"]}',
+                "# HELP jvm_gc_pause_seconds_count GC pause count",
+                "# TYPE jvm_gc_pause_seconds_count counter",
+                f"jvm_gc_pause_seconds_count{{{GC_LABELS}}} {point['jvm_gc_pause_seconds_count']}",
+                "# HELP jvm_gc_pause_seconds_sum GC pause sum",
+                "# TYPE jvm_gc_pause_seconds_sum counter",
+                f"jvm_gc_pause_seconds_sum{{{GC_LABELS}}} {point['jvm_gc_pause_seconds_sum']}",
+                "# HELP jvm_gc_pause_seconds_max GC pause max",
+                "# TYPE jvm_gc_pause_seconds_max gauge",
+                f"jvm_gc_pause_seconds_max{{{GC_LABELS}}} {point['jvm_gc_pause_seconds_max']}",
+                "# HELP http_server_requests_seconds_count HTTP request count",
+                "# TYPE http_server_requests_seconds_count counter",
+                f'http_server_requests_seconds_count{{uri="/",method="GET",status="200"}} {point["http_server_requests_seconds_count"]}',
+            ]
             path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
     manifest = {
@@ -179,47 +196,125 @@ def write_metric_files(series: Dict[str, List[dict]]) -> None:
     STATE_FILE.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 
-def request_id(index: int) -> str:
-    return f"req-{index:05d}"
-
-
-def trace_id(index: int) -> str:
-    return f"trace-{index:05d}"
-
-
-def log_line(timestamp: dt.datetime, level: str, request: str, trace: str, service: str, endpoint: str, duration_ms: int, message: str) -> str:
-    return f'{timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")} {level} requestId={request} traceId={trace} service={service} endpoint={endpoint} durationMs={duration_ms} message="{message}"'
+def log_json(
+    timestamp: dt.datetime,
+    level: str,
+    correlation_id: str,
+    service: str,
+    thread: str,
+    logger: str,
+    message: str,
+) -> str:
+    return json.dumps(
+        {
+            "timestamp": timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "service": service,
+            "level": level,
+            "correlationId": correlation_id,
+            "thread": thread,
+            "logger": logger,
+            "message": message,
+        },
+        ensure_ascii=False,
+    )
 
 
 def write_log_files(series: Dict[str, List[dict]]) -> None:
     logs = {service: [] for service in SERVICES}
-    req_index = 1
     for idx, point in enumerate(series["ecommerce"]):
         timestamp = dt.datetime.strptime(point["timestamp"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
-        request = request_id(req_index)
-        trace = trace_id(req_index)
-        req_index += 1
+        correlation_id = str(uuid.uuid4())
 
         ecommerce_duration = int(point["http_request_duration_p95"])
         product_duration = max(120, int(ecommerce_duration * 0.34))
         images_duration = max(95, int(ecommerce_duration * 0.28))
 
-        logs["ecommerce"].append(log_line(timestamp, "INFO", request, trace, "ecommerce", "/ecommerce-service/ecommerceProducts", 0, "Request received"))
-        logs["product"].append(log_line(timestamp + dt.timedelta(milliseconds=25), "INFO", request, trace, "product", "/product-service/products", product_duration, "Downstream request completed"))
-        logs["images"].append(log_line(timestamp + dt.timedelta(milliseconds=45), "INFO", request, trace, "images", "/image-service/images", images_duration, "Downstream request completed"))
+        logs["ecommerce"].append(
+            log_json(timestamp, "INFO", correlation_id, "ecommerce", "http-nio-8090-exec-1", "mock", "Request received")
+        )
+        logs["product"].append(
+            log_json(
+                timestamp + dt.timedelta(milliseconds=25),
+                "INFO",
+                correlation_id,
+                "product",
+                "http-nio-8090-exec-2",
+                "mock",
+                "Downstream request completed",
+            )
+        )
+        logs["images"].append(
+            log_json(
+                timestamp + dt.timedelta(milliseconds=45),
+                "INFO",
+                correlation_id,
+                "images",
+                "http-nio-8090-exec-3",
+                "mock",
+                "Downstream request completed",
+            )
+        )
 
         if point["full_gc"]:
             gc_duration = max(5200, ecommerce_duration)
-            logs["ecommerce"].append(log_line(timestamp + dt.timedelta(milliseconds=20), "WARN", request, trace, "ecommerce", "/ecommerce-service/ecommerceProducts", gc_duration, "Full GC pause detected"))
-            logs["product"].append(log_line(timestamp + dt.timedelta(milliseconds=30), "WARN", request, trace, "product", "/product-service/products", max(5100, product_duration), "Slow request during upstream GC pressure"))
-            logs["images"].append(log_line(timestamp + dt.timedelta(milliseconds=35), "WARN", request, trace, "images", "/image-service/images", max(5050, images_duration), "Slow request during upstream GC pressure"))
+            logs["ecommerce"].append(
+                log_json(
+                    timestamp + dt.timedelta(milliseconds=20),
+                    "WARN",
+                    correlation_id,
+                    "ecommerce",
+                    "http-nio-8090-exec-1",
+                    "mock",
+                    "Full GC pause detected",
+                )
+            )
+            logs["product"].append(
+                log_json(
+                    timestamp + dt.timedelta(milliseconds=30),
+                    "WARN",
+                    correlation_id,
+                    "product",
+                    "http-nio-8090-exec-2",
+                    "mock",
+                    "Slow request during upstream GC pressure",
+                )
+            )
+            logs["images"].append(
+                log_json(
+                    timestamp + dt.timedelta(milliseconds=35),
+                    "WARN",
+                    correlation_id,
+                    "images",
+                    "http-nio-8090-exec-3",
+                    "mock",
+                    "Slow request during upstream GC pressure",
+                )
+            )
 
-        logs["ecommerce"].append(log_line(timestamp + dt.timedelta(milliseconds=ecommerce_duration), "INFO" if ecommerce_duration < 5000 else "WARN", request, trace, "ecommerce", "/ecommerce-service/ecommerceProducts", ecommerce_duration, "Request completed"))
+        logs["ecommerce"].append(
+            log_json(
+                timestamp + dt.timedelta(milliseconds=ecommerce_duration),
+                "INFO" if ecommerce_duration < 5000 else "WARN",
+                correlation_id,
+                "ecommerce",
+                "http-nio-8090-exec-1",
+                "mock",
+                "Request completed",
+            )
+        )
 
         if idx % 12 == 0:
             agent_duration = 70 + (idx % 6) * 15
             logs["observability-agent"].append(
-                log_line(timestamp + dt.timedelta(seconds=4), "INFO", request, trace, "observability-agent", "/api/observability/metrics/request-rate/ecommerce", agent_duration, "Observability query completed")
+                log_json(
+                    timestamp + dt.timedelta(seconds=4),
+                    "INFO",
+                    correlation_id,
+                    "observability-agent",
+                    "reactor-http-nio-2",
+                    "mock",
+                    "Observability query completed",
+                )
             )
 
     for service, entries in logs.items():

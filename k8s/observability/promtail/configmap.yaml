@@ -13,8 +13,9 @@ data:
     clients:
       - url: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
     scrape_configs:
-      - job_name: kubernetes-pods
+      - job_name: kubernetes-pods-ecommerce
         pipeline_stages:
+          - cri: {}
           - json:
               expressions:
                 service: service
@@ -37,34 +38,70 @@ data:
             target_label: namespace
           - source_labels: [__meta_kubernetes_pod_container_name]
             target_label: container
-          - replacement: /var/log/pods/*$1/*.log
+          - source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
             separator: /
-            source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
+            regex: (.+)/(.+)
             target_label: __path__
+            replacement: /var/log/pods/$1/$2/*.log
+      - job_name: kubernetes-pods-observability-agent
+        pipeline_stages:
+          - cri: {}
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            regex: observability-agent
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: app
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
+            separator: /
+            regex: (.+)/(.+)
+            target_label: __path__
+            replacement: /var/log/pods/$1/$2/*.log
       - job_name: generated-log-files
+        pipeline_stages:
+          - json:
+              expressions:
+                service: service
+                level: level
+                correlationId: correlationId
+                logger: logger
+                thread: thread
+                message: message
         static_configs:
-          - targets: [localhost]
+          - targets:
+              - kubernetes.default.svc.cluster.local
             labels:
               job: generated-logs
               namespace: ecommerce
               app: ecommerce
               service: ecommerce
               __path__: /generated-logs/ecommerce.log
-          - targets: [localhost]
+          - targets:
+              - kubernetes.default.svc.cluster.local
             labels:
               job: generated-logs
               namespace: ecommerce
               app: product
               service: product
               __path__: /generated-logs/product.log
-          - targets: [localhost]
+          - targets:
+              - kubernetes.default.svc.cluster.local
             labels:
               job: generated-logs
               namespace: ecommerce
               app: images
               service: images
               __path__: /generated-logs/images.log
-          - targets: [localhost]
+          - targets:
+              - kubernetes.default.svc.cluster.local
             labels:
               job: generated-logs
               namespace: observability-agent

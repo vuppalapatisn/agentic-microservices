@@ -19,7 +19,11 @@ spec:
           env:
             - name: GF_AUTH_ANONYMOUS_ENABLED
               value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Editor"
             - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "true"
+            - name: GF_EXPLORE_ENABLED
               value: "true"
           ports:
             - containerPort: 3000

@@ -3,6 +3,7 @@ setlocal enabledelayedexpansion
 
 set "ROOT_DIR=%~dp0"
 if "%ROOT_DIR:~-1%"=="\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
+for /f %%I in ('powershell -NoProfile -Command "(Get-Date).ToString(\"yyyyMMddHHmmss\")"') do set "IMAGE_TAG=%%I"
 
 echo [1/10] Switching to repo root...
 cd /d "%ROOT_DIR%" || goto :fail
@@ -17,8 +18,7 @@ kubectl delete -f "%ROOT_DIR%\k8s\observability\promtail" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\loki" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\prometheus" --ignore-not-found
 
-echo [3/10] Removing stale local Docker images...
-docker rmi ecommerce:v2 images:v2 product-service:v2 2>nul
+echo [3/10] Using image tag !IMAGE_TAG!...
 
 echo [4/10] Building observability-agent...
 cd /d "%ROOT_DIR%\microservices\observability-agent" || goto :fail
@@ -29,21 +29,21 @@ echo [5/10] Building product-service...
 cd /d "%ROOT_DIR%\microservices\product" || goto :fail
 call mvn clean package
 if errorlevel 1 goto :fail
-docker build --no-cache -t product-service:v2 .
+docker build --no-cache -t product-service:!IMAGE_TAG! .
 if errorlevel 1 goto :fail
 
 echo [6/10] Building images...
 cd /d "%ROOT_DIR%\microservices\images" || goto :fail
 call mvn clean package
 if errorlevel 1 goto :fail
-docker build --no-cache -t images:v2 .
+docker build --no-cache -t images:!IMAGE_TAG! .
 if errorlevel 1 goto :fail
 
 echo [7/10] Building ecommerce...
 cd /d "%ROOT_DIR%\microservices\ecommerce" || goto :fail
 call mvn clean package
 if errorlevel 1 goto :fail
-docker build --no-cache -t ecommerce:v2 .
+docker build --no-cache -t ecommerce:!IMAGE_TAG! .
 if errorlevel 1 goto :fail
 
 echo [8/10] Deploying application Kubernetes resources...
@@ -55,6 +55,12 @@ if errorlevel 1 goto :fail
 kubectl apply -f "%ROOT_DIR%\k8s\images"
 if errorlevel 1 goto :fail
 kubectl apply -f "%ROOT_DIR%\k8s\ecommerce"
+if errorlevel 1 goto :fail
+kubectl set image deployment/product product=product-service:!IMAGE_TAG! -n ecommerce
+if errorlevel 1 goto :fail
+kubectl set image deployment/images images=images:!IMAGE_TAG! -n ecommerce
+if errorlevel 1 goto :fail
+kubectl set image deployment/ecommerce ecommerce=ecommerce:!IMAGE_TAG! -n ecommerce
 if errorlevel 1 goto :fail
 kubectl apply -f "%ROOT_DIR%\k8s\ingress"
 if errorlevel 1 goto :fail

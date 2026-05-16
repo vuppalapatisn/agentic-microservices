@@ -88,7 +88,14 @@ public class PrometheusClient {
     }
 
     private String toJobName(String serviceName) {
-        return serviceName.replace("-service", "");
+        if (serviceName == null || serviceName.isBlank()) {
+            return "";
+        }
+        String s = serviceName.trim();
+        if (s.endsWith("-service")) {
+            return s.substring(0, s.length() - "-service".length());
+        }
+        return s;
     }
 
     private String buildQuery(String metricName, String serviceName) {
@@ -97,8 +104,29 @@ public class PrometheusClient {
             return metricName;
         }
         if (metricName.startsWith("rate(")) {
-            return metricName.replace("http_server_requests_seconds_count", "http_server_requests_seconds_count{job=\"" + jobName + "\"}");
+            return injectJobIntoRate(metricName, jobName);
         }
-        return metricName + "{job=\"" + jobName + "\"}";
+        StringBuilder labels = new StringBuilder("job=\"").append(jobName).append("\"");
+        if ("jvm_memory_used_bytes".equals(metricName) || "jvm_memory_max_bytes".equals(metricName)) {
+            labels.append(",area=\"heap\"");
+        }
+        return metricName + "{" + labels + "}";
+    }
+
+    private String injectJobIntoRate(String metricName, String jobName) {
+        int open = metricName.indexOf('(');
+        int close = metricName.lastIndexOf('[');
+        if (open < 0 || close < 0 || close <= open) {
+            return metricName;
+        }
+        String inner = metricName.substring(open + 1, close).trim();
+        String windowAndRest = metricName.substring(close);
+        String labeledInner;
+        if (inner.contains("{")) {
+            labeledInner = inner;
+        } else {
+            labeledInner = inner + "{job=\"" + jobName + "\"}";
+        }
+        return "rate(" + labeledInner + windowAndRest;
     }
 }
