@@ -2,6 +2,8 @@ server:
   port: 8091
 
 spring:
+  application:
+    name: observability-agent
   ai:
     mcp:
       server:
@@ -10,7 +12,15 @@ spring:
         protocol: STREAMABLE
         instructions: Observability MCP server for logs, metrics and service discovery.
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
 observability:
+  correlation:
+    header: X-Correlation-Id
   loki:
     base-url: http://loki.observability.svc.cluster.local:3100
     timeout-seconds: 5

@@ -50,6 +50,9 @@ data:
           - role: pod
         relabel_configs:
           - source_labels: [__meta_kubernetes_namespace]
+            regex: observability
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_label_app]
             regex: observability-agent
             action: keep
           - source_labels: [__meta_kubernetes_pod_label_app]
@@ -104,7 +107,7 @@ data:
               - kubernetes.default.svc.cluster.local
             labels:
               job: generated-logs
-              namespace: observability-agent
+              namespace: observability
               app: observability-agent
               service: observability-agent
               __path__: /generated-logs/observability-agent.log

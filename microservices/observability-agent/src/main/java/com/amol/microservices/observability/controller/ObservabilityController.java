@@ -1,10 +1,12 @@
 package com.amol.microservices.observability.controller;
 
-import com.amol.microservices.observability.dto.ErrorResponseDto;
 import com.amol.microservices.observability.dto.LogsResponseDto;
 import com.amol.microservices.observability.dto.MetricsResponseDto;
 import com.amol.microservices.observability.dto.ServicesResponseDto;
 import com.amol.microservices.observability.service.ObservabilityService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 
+@Tag(name = "Observability", description = "Logs and metrics from Loki and Prometheus")
 @RestController
 @RequestMapping("/api/observability")
 public class ObservabilityController {
@@ -22,8 +25,10 @@ public class ObservabilityController {
         this.service = service;
     }
 
+    @Operation(summary = "Get logs by request/correlation ID")
     @GetMapping("/logs/request/{requestId}")
-    public ResponseEntity<LogsResponseDto> logsByRequestId(@PathVariable String requestId,
+    public ResponseEntity<LogsResponseDto> logsByRequestId(
+            @Parameter(description = "Correlation or request ID") @PathVariable String requestId,
                                                            @RequestParam(required = false) String startTime,
                                                            @RequestParam(required = false) String endTime) {
         Instant start = parseOrNull(startTime);
@@ -33,8 +38,10 @@ public class ObservabilityController {
         return ResponseEntity.ok(resp);
     }
 
+    @Operation(summary = "Get logs for a service")
     @GetMapping("/logs/service/{serviceName}")
-    public ResponseEntity<LogsResponseDto> logsByService(@PathVariable @NotBlank String serviceName,
+    public ResponseEntity<LogsResponseDto> logsByService(
+            @Parameter(example = "ecommerce-service") @PathVariable @NotBlank String serviceName,
                                                          @RequestParam(required = false) String startTime,
                                                          @RequestParam(required = false) String endTime) {
         Instant start = parseOrNull(startTime);
@@ -44,8 +51,10 @@ public class ObservabilityController {
         return ResponseEntity.ok(resp);
     }
 
+    @Operation(summary = "Get error and warn logs for a service")
     @GetMapping("/logs/errors/{serviceName}")
-    public ResponseEntity<LogsResponseDto> errorLogsByService(@PathVariable @NotBlank String serviceName,
+    public ResponseEntity<LogsResponseDto> errorLogsByService(
+            @Parameter(example = "ecommerce-service") @PathVariable @NotBlank String serviceName,
                                                               @RequestParam(required = false) String startTime,
                                                               @RequestParam(required = false) String endTime) {
         Instant start = parseOrNull(startTime);
@@ -55,8 +64,10 @@ public class ObservabilityController {
         return ResponseEntity.ok(resp);
     }
 
+    @Operation(summary = "Get JVM heap metrics for a service")
     @GetMapping("/metrics/heap/{serviceName}")
-    public ResponseEntity<MetricsResponseDto> heapMetrics(@PathVariable @NotBlank String serviceName,
+    public ResponseEntity<MetricsResponseDto> heapMetrics(
+            @Parameter(example = "ecommerce-service") @PathVariable @NotBlank String serviceName,
                                                           @RequestParam(required = false) String startTime,
                                                           @RequestParam(required = false) String endTime,
                                                           @RequestParam(required = false) Integer stepSeconds) {
@@ -68,8 +79,10 @@ public class ObservabilityController {
         return ResponseEntity.ok(resp);
     }
 
+    @Operation(summary = "Get JVM thread metrics for a service")
     @GetMapping("/metrics/threads/{serviceName}")
-    public ResponseEntity<MetricsResponseDto> threadMetrics(@PathVariable @NotBlank String serviceName,
+    public ResponseEntity<MetricsResponseDto> threadMetrics(
+            @Parameter(example = "ecommerce-service") @PathVariable @NotBlank String serviceName,
                                                             @RequestParam(required = false) String startTime,
                                                             @RequestParam(required = false) String endTime,
                                                             @RequestParam(required = false) Integer stepSeconds) {
@@ -81,8 +94,10 @@ public class ObservabilityController {
         return ResponseEntity.ok(resp);
     }
 
+    @Operation(summary = "Get HTTP request rate metrics for a service")
     @GetMapping("/metrics/request-rate/{serviceName}")
-    public ResponseEntity<MetricsResponseDto> requestRateMetrics(@PathVariable @NotBlank String serviceName,
+    public ResponseEntity<MetricsResponseDto> requestRateMetrics(
+            @Parameter(example = "ecommerce-service") @PathVariable @NotBlank String serviceName,
                                                                  @RequestParam(required = false) String startTime,
                                                                  @RequestParam(required = false) String endTime,
                                                                  @RequestParam(required = false) Integer stepSeconds) {
@@ -94,6 +109,7 @@ public class ObservabilityController {
         return ResponseEntity.ok(resp);
     }
 
+    @Operation(summary = "List observable services")
     @GetMapping("/services")
     public ResponseEntity<ServicesResponseDto> services() {
         ServicesResponseDto resp = service.listObservableServices();

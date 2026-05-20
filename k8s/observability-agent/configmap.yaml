@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: observability-agent-config
-  namespace: observability-agent
+  namespace: observability
 data:
   OBSERVABILITY_LOKI_BASE_URL: "http://loki.observability.svc.cluster.local:3100"
   OBSERVABILITY_LOKI_TIMEOUT_SECONDS: "5"

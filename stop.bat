@@ -8,6 +8,10 @@ echo [1/4] Switching to repo root...
 cd /d "%ROOT_DIR%" || goto :fail
 
 echo [2/4] Removing observability resources...
+kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\configmap.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\deployment.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\service.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\observability-agent" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\grafana" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\promtail" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\loki" --ignore-not-found
@@ -22,6 +26,7 @@ kubectl delete -f "%ROOT_DIR%\k8s\product" --ignore-not-found
 echo [4/4] Current namespace status...
 kubectl get pods -n ecommerce --ignore-not-found
 kubectl get pods -n observability --ignore-not-found
+kubectl delete namespace observability-agent --ignore-not-found
 
 echo.
 echo Shutdown complete.

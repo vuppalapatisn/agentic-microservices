@@ -1,37 +1,40 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: observability-agent
+  name: talk-to-observability-agent
   namespace: observability
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: observability-agent
+      app: talk-to-observability-agent
   template:
     metadata:
       labels:
-        app: observability-agent
+        app: talk-to-observability-agent
     spec:
       containers:
-        - name: observability-agent
-          image: observability-agent:v1
+        - name: talk-to-observability-agent
+          image: talk-to-observability-agent:v1
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: observability-agent-config
+                name: talk-to-observability-agent-config
+            - secretRef:
+                name: talk-to-observability-agent-secret
+                optional: true
           ports:
-            - containerPort: 8091
+            - containerPort: 8092
           readinessProbe:
             httpGet:
-              path: /actuator/health
-              port: 8091
+              path: /health
+              port: 8092
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /actuator/health
-              port: 8091
+              path: /health
+              port: 8092
             initialDelaySeconds: 20
             periodSeconds: 15
           resources:

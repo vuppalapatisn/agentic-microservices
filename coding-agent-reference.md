@@ -11,6 +11,7 @@ Use this file as the working reference when adding new features to the repo.
 This repo is a Kubernetes-native local ecommerce system with:
 - 3 Spring Boot microservices
 - 1 Spring Boot observability MCP service
+- 1 Python FastAPI investigation service
 - Prometheus, Loki, Promtail, Grafana
 - local orchestration through `start.bat` / `stop.bat`
 
@@ -30,6 +31,9 @@ This repo is a Kubernetes-native local ecommerce system with:
 ### Observability service
 - `observability-agent`
   - role: REST + MCP access to Prometheus and Loki
+  - namespace: `observability-agent`
+- `talk-to-observability-agent`
+  - role: natural-language investigation and RCA over existing telemetry
   - namespace: `observability-agent`
 
 ### Kubernetes namespaces
@@ -70,6 +74,7 @@ Primary local URLs:
 - Ecommerce Prometheus: `http://localhost:8090/ecommerce-service/actuator/prometheus`
 - Prometheus UI: `http://localhost:9090`
 - Grafana UI: `http://localhost:3000`
+- Talk To Observability: `http://localhost:8092/health`
 
 ## Service Discovery
 
@@ -110,17 +115,24 @@ Each service has:
 - `k8s/observability-agent/deployment.yaml`
 - `k8s/observability-agent/service.yaml`
 
+### Talk To Observability manifests
+- `k8s/talk-to-observability-agent/configmap.yaml`
+- `k8s/talk-to-observability-agent/deployment.yaml`
+- `k8s/talk-to-observability-agent/service.yaml`
+- `k8s/talk-to-observability-agent/secret-example.yaml`
+
 ## Build And Startup
 
 ### Normal way to start everything
 - `start.bat`
 
 What `start.bat` does now:
-- builds fresh Docker images for app services
+- builds fresh Docker images for app services and observability services
 - uses a new timestamp tag on each run
 - applies Kubernetes manifests
 - updates deployments to the fresh image tags
 - deploys observability stack
+- deploys `observability-agent` and `talk-to-observability-agent`
 
 This matters because:
 - reusing a static image tag caused stale-image confusion before
@@ -200,6 +212,28 @@ MCP tools:
 - `get_request_rate`
 - `list_observable_services`
 
+## Talk To Observability Agent
+
+Source:
+- `microservices/talk-to-observability-agent/`
+
+Endpoints:
+- `GET /health`
+- `POST /api/v1/investigate`
+
+Flow:
+- FastAPI request
+- LangGraph workflow
+- observability-agent REST fetches
+- deterministic Python correlation
+- OpenAI summary
+
+Required env:
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `OBSERVABILITY_AGENT_BASE_URL`
+- `REQUEST_TIMEOUT_SECONDS`
+
 ## Database Initialization
 
 `product` and `images` use H2 with SQL init files.
@@ -263,6 +297,7 @@ Do not switch those back to Hibernate schema creation unless you intentionally r
 - `k8s/observability/promtail/configmap.yaml`
 - `k8s/observability/grafana/`
 - `microservices/observability-agent/`
+- `microservices/talk-to-observability-agent/`
 
 ### Local orchestration
 - `start.bat`
@@ -321,6 +356,7 @@ When changing logs/observability:
   - Grafana
 - Added structured JSON logging and correlation-id propagation.
 - Added observability agent with REST + MCP support.
+- Added `talk-to-observability-agent` using FastAPI + LangGraph over the existing observability-agent.
 
 ### Learnings
 - If local `mvn spring-boot:run` works but Kubernetes does not, check image freshness first.
@@ -331,6 +367,7 @@ When changing logs/observability:
 - For actuator debugging, the `/actuator` index is the fastest truth source for what is actually exposed.
 - Do not create a custom actuator endpoint with id `prometheus` when Spring Boot already provides the built-in Prometheus endpoint.
 - Do not assume a fix tested with `spring-boot:run` automatically proves the containerized runtime is using the same code/config.
+- `talk-to-observability-agent` should stay thin: deterministic telemetry fetch + correlation first, OpenAI reasoning second.
 
 ## Last Updated
 
