@@ -1,6 +1,7 @@
 from statistics import mean
 
 from app.models.schemas import CorrelationFinding, InvestigationContext, LogFinding, MetricFinding
+from app.util.formatting import format_bytes
 
 
 class CorrelationEngine:
@@ -47,7 +48,7 @@ class CorrelationEngine:
 
         if heap_peak and heap_avg and heap_peak > heap_avg * 1.5:
             evidence.append(
-                f"Heap usage rose from an average of {heap_avg:.2f} to a peak of {heap_peak:.2f}."
+                f"Heap usage rose from an average of {format_bytes(heap_avg)} to a peak of {format_bytes(heap_peak)}."
             )
             tags.append("heap-spike")
             scores["resource saturation"] += 2
@@ -65,7 +66,7 @@ class CorrelationEngine:
 
         if context.request_id and len({log.service for log in context.logs}) > 1:
             evidence.append(
-                f"Request id {context.request_id} appears across multiple services, which indicates a cross-service flow."
+                f"Correlation id {context.request_id} appears across multiple services, which indicates a cross-service flow."
             )
             scores["request-specific failure"] += 2
             if timeout_logs or error_count:

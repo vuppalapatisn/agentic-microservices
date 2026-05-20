@@ -11,6 +11,15 @@ class Settings:
             "http://observability-agent.observability.svc.cluster.local:8091",
         ).strip()
         self.request_timeout_seconds = int(os.getenv("REQUEST_TIMEOUT_SECONDS", "10"))
+        self.grafana_base_url = os.getenv("GRAFANA_BASE_URL", "http://localhost:3000").strip()
+        self.grafana_api_base_url = os.getenv(
+            "GRAFANA_API_BASE_URL",
+            "http://grafana.observability.svc.cluster.local:3000",
+        ).strip()
+        self.grafana_loki_datasource_uid = os.getenv("GRAFANA_LOKI_DATASOURCE_UID", "loki").strip()
+        self.grafana_dashboard_uid = os.getenv(
+            "GRAFANA_DASHBOARD_UID", "ecommerce-observability"
+        ).strip()
 
 
 @lru_cache(maxsize=1)

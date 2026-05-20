@@ -19,6 +19,7 @@ from app.models.schemas import (
 )
 from app.prompts.reasoning import build_reasoning_messages
 from app.services.reasoning_service import ReasoningService
+from app.util.grafana_links import build_dashboard_url, build_loki_explore_url
 
 
 SERVICE_ALIASES = {
@@ -57,6 +58,8 @@ class InvestigationState(TypedDict, total=False):
     summary: str
     probable_root_cause: str
     evidence: list[str]
+    grafana_explore_url: str
+    grafana_dashboard_url: str
 
 
 class InvestigationWorkflow:
@@ -110,6 +113,8 @@ class InvestigationWorkflow:
             summary=result["summary"],
             probableRootCause=result["probable_root_cause"],
             evidence=result["evidence"],
+            grafanaExploreUrl=result.get("grafana_explore_url"),
+            grafanaDashboardUrl=result.get("grafana_dashboard_url"),
         )
 
     async def parse_query_node(self, state: InvestigationState) -> InvestigationState:
@@ -274,7 +279,40 @@ class InvestigationWorkflow:
         }
 
     async def response_node(self, state: InvestigationState) -> InvestigationState:
-        return state
+        start = self._parse_iso_time(state["start_time"])
+        end = self._parse_iso_time(state["end_time"])
+        grafana_api = self.settings.grafana_api_base_url
+        grafana_ui = self.settings.grafana_base_url
+        loki_url = build_loki_explore_url(
+            grafana_ui,
+            start,
+            end,
+            correlation_id=state.get("request_id"),
+            fallback_loki_uid=self.settings.grafana_loki_datasource_uid,
+            api_base_url=grafana_api,
+        )
+        dashboard_url = build_dashboard_url(
+            grafana_ui,
+            start,
+            end,
+            fallback_dashboard_uid=self.settings.grafana_dashboard_uid,
+            api_base_url=grafana_api,
+        )
+        summary = state["summary"].rstrip(".")
+        if loki_url not in summary:
+            summary = (
+                f"{summary}. View correlated logs in Grafana Explore: {loki_url}. "
+                f"View JVM metrics for the incident window: {dashboard_url}."
+            )
+        return {
+            "grafana_explore_url": loki_url,
+            "grafana_dashboard_url": dashboard_url,
+            "summary": summary,
+        }
+
+    @staticmethod
+    def _parse_iso_time(value: str) -> datetime:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
     @staticmethod
     def _to_utc_datetime(current_date: date, time_text: str) -> datetime:

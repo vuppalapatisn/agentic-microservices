@@ -8,6 +8,7 @@ def build_reasoning_messages(payload: dict) -> list[dict]:
             "content": (
                 "You are an observability assistant. "
                 "Use only the structured findings provided. "
+                "Keep heap/memory sizes exactly as given (MB or GB). "
                 "Respond concisely with a probable root cause and supporting evidence."
             ),
         },

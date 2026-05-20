@@ -62,3 +62,5 @@ class InvestigationResponse(BaseModel):
     summary: str
     probableRootCause: str
     evidence: list[str]
+    grafanaExploreUrl: str | None = None
+    grafanaDashboardUrl: str | None = None
