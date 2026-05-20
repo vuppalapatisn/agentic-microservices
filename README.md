@@ -1,39 +1,46 @@
 # microservices-ecommerce-2
 
+Kubernetes-native ecommerce demo with Prometheus, Loki, Grafana, observability-agent, and talk-to-observability-agent.
+
 ## Prerequisites
 
-* Java 21
-* Maven
-* Docker Desktop
-* Kubernetes enabled in Docker Desktop
-* `kubectl`
+Java 21, Maven, Docker Desktop (Kubernetes enabled), `kubectl`
 
-## Start
+## Start / Stop
 
 ```powershell
 cd C:\git\microservices-ecommerce-2
-start.bat
+start.bat    # build, deploy, wait for rollouts
+stop.bat     # tear down workloads
 ```
 
-## Stop
+## URLs (localhost)
+
+| Service | URL |
+|---------|-----|
+| Ecommerce API | http://localhost:8090/ecommerce-service/ecommerceProducts |
+| Grafana | http://localhost:3000 |
+| Prometheus | http://localhost:9090 |
+| Talk-to-observability (Swagger) | http://localhost:8092/docs |
+| Observability-agent (Swagger) | http://localhost:8091/swagger-ui.html *(port-forward)* |
+
+## Before first investigate call
+
+Create OpenAI secret once in namespace `observability` (survives `start.bat`):
 
 ```powershell
-cd C:\git\microservices-ecommerce-2
-stop.bat
+kubectl create secret generic talk-to-observability-agent-secret `
+  --from-literal=OPENAI_API_KEY=your-key-here `
+  -n observability
 ```
 
-## URLs
+## Traffic spike demo
 
-* App: `http://localhost:8090/ecommerce-service/ecommerceProducts`
-* Ecommerce Actuator: `http://localhost:8090/ecommerce-service/actuator`
-* Ecommerce Prometheus: `http://localhost:8090/ecommerce-service/actuator/prometheus`
-* Prometheus: `http://localhost:9090`
-* Grafana: `http://localhost:3000`
-* Talk To Observability: `http://localhost:8092/health`
+```powershell
+pip install -r scripts/requirements.txt
+python scripts/simulate_traffic_spike.py
+```
 
-## Notes
+## Developer guide
 
-* `start.bat` rebuilds and deploys fresh timestamp-tagged images for `product`, `images`, `ecommerce`, `observability-agent`, and `talk-to-observability-agent`
-* Observability includes Loki logs, Prometheus JVM metrics, and request-rate metrics
-* View logs in Grafana from `Explore` using datasource `Loki`
-* Create secret `talk-to-observability-agent-secret` in namespace `observability-agent` with `OPENAI_API_KEY` before starting the Python investigation service
+APIs, Swagger, Loki/Grafana queries, correlation IDs, port-forwards: **[dev-readme.md](dev-readme.md)**

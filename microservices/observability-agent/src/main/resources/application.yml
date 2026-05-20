@@ -22,8 +22,8 @@ observability:
   correlation:
     header: X-Correlation-Id
   loki:
-    base-url: http://loki.observability.svc.cluster.local:3100
-    timeout-seconds: 5
+    base-url: ${OBSERVABILITY_LOKI_BASE_URL:http://loki.observability.svc.cluster.local:3100}
+    timeout-seconds: ${OBSERVABILITY_LOKI_TIMEOUT_SECONDS:5}
   prometheus:
-    base-url: http://prometheus.observability.svc.cluster.local:9090
-    timeout-seconds: 5
+    base-url: ${OBSERVABILITY_PROMETHEUS_BASE_URL:http://prometheus.observability.svc.cluster.local:9090}
+    timeout-seconds: ${OBSERVABILITY_PROMETHEUS_TIMEOUT_SECONDS:5}

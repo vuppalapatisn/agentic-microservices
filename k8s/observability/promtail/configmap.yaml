@@ -13,101 +13,77 @@ data:
     clients:
       - url: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
     scrape_configs:
-      - job_name: kubernetes-pods-ecommerce
-        pipeline_stages:
-          - cri: {}
-          - json:
-              expressions:
-                service: service
-                level: level
-                correlationId: correlationId
-                logger: logger
-                thread: thread
-                message: message
-        kubernetes_sd_configs:
-          - role: pod
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_namespace]
-            regex: ecommerce
-            action: keep
-          - source_labels: [__meta_kubernetes_pod_label_app]
-            target_label: app
-          - source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: namespace
-          - source_labels: [__meta_kubernetes_pod_container_name]
-            target_label: container
-          - source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
-            separator: /
-            regex: (.+)/(.+)
-            target_label: __path__
-            replacement: /var/log/pods/$1/$2/*.log
-      - job_name: kubernetes-pods-observability-agent
-        pipeline_stages:
-          - cri: {}
-        kubernetes_sd_configs:
-          - role: pod
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_namespace]
-            regex: observability
-            action: keep
-          - source_labels: [__meta_kubernetes_pod_label_app]
-            regex: observability-agent
-            action: keep
-          - source_labels: [__meta_kubernetes_pod_label_app]
-            target_label: app
-          - source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: namespace
-          - source_labels: [__meta_kubernetes_pod_container_name]
-            target_label: container
-          - source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
-            separator: /
-            regex: (.+)/(.+)
-            target_label: __path__
-            replacement: /var/log/pods/$1/$2/*.log
-      - job_name: generated-log-files
-        pipeline_stages:
-          - json:
-              expressions:
-                service: service
-                level: level
-                correlationId: correlationId
-                logger: logger
-                thread: thread
-                message: message
+      # Docker Desktop / containerd: pod logs live under /var/log/pods/<namespace>_<pod>_<uid>/<container>/*.log
+      # Static globs avoid kubernetes_sd issues on local K8s clusters.
+      - job_name: ecommerce-service
         static_configs:
-          - targets:
-              - kubernetes.default.svc.cluster.local
+          - targets: [localhost]
             labels:
-              job: generated-logs
               namespace: ecommerce
               app: ecommerce
-              service: ecommerce
-              __path__: /generated-logs/ecommerce.log
-          - targets:
-              - kubernetes.default.svc.cluster.local
+              __path__: /var/log/pods/ecommerce_ecommerce-*/ecommerce/*.log
+        pipeline_stages:
+          - cri: {}
+      - job_name: product-service
+        static_configs:
+          - targets: [localhost]
             labels:
-              job: generated-logs
               namespace: ecommerce
               app: product
-              service: product
-              __path__: /generated-logs/product.log
-          - targets:
-              - kubernetes.default.svc.cluster.local
+              __path__: /var/log/pods/ecommerce_product-*/product/*.log
+        pipeline_stages:
+          - cri: {}
+      - job_name: images-service
+        static_configs:
+          - targets: [localhost]
             labels:
-              job: generated-logs
               namespace: ecommerce
               app: images
-              service: images
-              __path__: /generated-logs/images.log
-          - targets:
-              - kubernetes.default.svc.cluster.local
+              __path__: /var/log/pods/ecommerce_images-*/images/*.log
+        pipeline_stages:
+          - cri: {}
+      - job_name: observability-agent
+        static_configs:
+          - targets: [localhost]
             labels:
-              job: generated-logs
               namespace: observability
               app: observability-agent
-              service: observability-agent
-              __path__: /generated-logs/observability-agent.log
+              __path__: /var/log/pods/observability_observability-agent-*/observability-agent/*.log
+        pipeline_stages:
+          - cri: {}
+      - job_name: talk-to-observability-agent
+        static_configs:
+          - targets: [localhost]
+            labels:
+              namespace: observability
+              app: talk-to-observability-agent
+              __path__: /var/log/pods/observability_talk-to-observability-agent-*/talk-to-observability-agent/*.log
+        pipeline_stages:
+          - cri: {}
+      - job_name: grafana
+        static_configs:
+          - targets: [localhost]
+            labels:
+              namespace: observability
+              app: grafana
+              __path__: /var/log/pods/observability_grafana-*/grafana/*.log
+        pipeline_stages:
+          - cri: {}
+      - job_name: loki
+        static_configs:
+          - targets: [localhost]
+            labels:
+              namespace: observability
+              app: loki
+              __path__: /var/log/pods/observability_loki-*/loki/*.log
+        pipeline_stages:
+          - cri: {}
+      - job_name: prometheus
+        static_configs:
+          - targets: [localhost]
+            labels:
+              namespace: observability
+              app: prometheus
+              __path__: /var/log/pods/observability_prometheus-*/prometheus/*.log
+        pipeline_stages:
+          - cri: {}

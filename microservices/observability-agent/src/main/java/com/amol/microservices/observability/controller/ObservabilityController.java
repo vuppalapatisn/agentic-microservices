@@ -25,16 +25,16 @@ public class ObservabilityController {
         this.service = service;
     }
 
-    @Operation(summary = "Get logs by request/correlation ID")
-    @GetMapping("/logs/request/{requestId}")
-    public ResponseEntity<LogsResponseDto> logsByRequestId(
-            @Parameter(description = "Correlation or request ID") @PathVariable String requestId,
+    @Operation(summary = "Get logs by correlation ID (searches Loki across ecommerce and observability)")
+    @GetMapping("/logs/request/{correlationId}")
+    public ResponseEntity<LogsResponseDto> logsByCorrelationId(
+            @Parameter(description = "X-Correlation-Id value from traffic or service logs") @PathVariable String correlationId,
                                                            @RequestParam(required = false) String startTime,
                                                            @RequestParam(required = false) String endTime) {
         Instant start = parseOrNull(startTime);
         Instant end = parseOrNull(endTime);
         validateRange(start, end);
-        LogsResponseDto resp = service.getLogsByRequestId(requestId, start, end);
+        LogsResponseDto resp = service.getLogsByRequestId(correlationId, start, end);
         return ResponseEntity.ok(resp);
     }
 

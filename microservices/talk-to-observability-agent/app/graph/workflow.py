@@ -27,6 +27,11 @@ SERVICE_ALIASES = {
     "images": "images-service",
 }
 
+CORRELATION_UUID = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+    re.IGNORECASE,
+)
+
 
 class InvestigationState(TypedDict, total=False):
     request: InvestigationRequest
@@ -92,16 +97,16 @@ class InvestigationWorkflow:
         graph.add_edge("response_node", END)
         return graph.compile()
 
-    async def run(self, request: InvestigationRequest, investigation_id: str) -> InvestigationResponse:
+    async def run(self, request: InvestigationRequest, correlation_id: str) -> InvestigationResponse:
         state: InvestigationState = {
             "request": request,
-            "investigation_id": investigation_id,
+            "investigation_id": correlation_id,
             "query": request.query,
         }
         result = await self.graph.ainvoke(state)
         return InvestigationResponse(
-            investigationId=investigation_id,
-            correlationId=investigation_id,
+            investigationId=correlation_id,
+            correlationId=correlation_id,
             summary=result["summary"],
             probableRootCause=result["probable_root_cause"],
             evidence=result["evidence"],
@@ -110,8 +115,18 @@ class InvestigationWorkflow:
     async def parse_query_node(self, state: InvestigationState) -> InvestigationState:
         query = state["query"].strip()
         lowered = query.lower()
-        request_match = re.search(r"(request id|requestid|correlation id|correlationid)\s*[:=]?\s*([A-Za-z0-9\-]+)", query, re.IGNORECASE)
+        request_match = re.search(
+            r"(request id|requestid|correlation id|correlationid)\s*[:=]?\s*([0-9a-f\-]+)",
+            query,
+            re.IGNORECASE,
+        )
         request_id = request_match.group(2) if request_match else None
+        if not request_id:
+            uuid_match = CORRELATION_UUID.search(query)
+            request_id = uuid_match.group(0) if uuid_match else None
+        request = state.get("request")
+        if not request_id and request is not None and request.correlation_id:
+            request_id = request.correlation_id
 
         issue_type = "general"
         if "timeout" in lowered:
@@ -182,7 +197,7 @@ class InvestigationWorkflow:
         logs = []
         if state["fetch_logs"]:
             if state.get("request_id"):
-                logs = await self.client.get_logs_by_request_id(
+                logs = await self.client.get_logs_by_correlation_id(
                     state["request_id"], state["start_time"], state["end_time"]
                 )
             else:

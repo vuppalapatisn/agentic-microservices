@@ -5,30 +5,31 @@ import com.amol.microservices.observability.dto.LogEntryDto;
 import com.amol.microservices.observability.dto.LogsResponseDto;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
-import reactor.core.publisher.Mono;
+import org.springframework.web.util.UriUtils;
 
-import java.time.Instant;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.StreamSupport;
 
 @Component
 public class LokiClient {
 
-    private final WebClient webClient;
+    private final HttpClient httpClient;
     private final ObservabilityProperties properties;
     private final ObjectMapper objectMapper;
 
-    public LokiClient(WebClient.Builder builder, ObservabilityProperties properties, ObjectMapper objectMapper) {
+    public LokiClient(ObservabilityProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
-        String base = properties.getLoki().getBaseUrl();
-        this.webClient = builder
-                .baseUrl(base == null ? "" : base)
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
                 .build();
     }
 
@@ -36,16 +37,10 @@ public class LokiClient {
         if (properties.getLoki().getBaseUrl() == null || properties.getLoki().getBaseUrl().isBlank()) {
             return new LogsResponseDto(requestId, List.of());
         }
-
-        try {
-            String query = "{namespace=~\"ecommerce|observability\"} |= \"" + escapeLogql(requestId) + "\"";
-            List<LogEntryDto> logs = executeQuery(query, start, end).stream()
-                    .sorted((a, b) -> a.timestamp().compareTo(b.timestamp()))
-                    .toList();
-            return new LogsResponseDto(requestId, logs);
-        } catch (WebClientResponseException ex) {
-            throw new RuntimeException("Loki query failed", ex);
-        }
+        String id = requestId == null ? "" : requestId.trim();
+        String query = "{namespace=~\"ecommerce|observability\"} |= \"" + escapeLogql(id) + "\"";
+        List<LogEntryDto> logs = executeQuery(query, start, end);
+        return new LogsResponseDto(id, logs);
     }
 
     public LogsResponseDto queryByService(String serviceName, Instant start, Instant end) {
@@ -90,34 +85,34 @@ public class LokiClient {
     }
 
     private List<LogEntryDto> executeQuery(String query, Instant start, Instant end) {
-        String response = null;
+        Instant rangeStart = resolveStart(start);
+        Instant rangeEnd = resolveEnd(end);
         try {
-            response = webClient.get()
-                    .uri(uriBuilder -> {
-                        var builder = uriBuilder.path("/loki/api/v1/query_range")
-                                .queryParam("query", query)
-                                .queryParam("limit", 1000)
-                                .queryParam("direction", "forward");
-                        if (start != null) {
-                            builder.queryParam("start", toNanos(start));
-                        }
-                        if (end != null) {
-                            builder.queryParam("end", toNanos(end));
-                        }
-                        return builder.build();
-                    })
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, c -> Mono.error(new WebClientResponseException("Loki error", 500, "", null, null, null)))
-                    .bodyToMono(String.class)
-                    .timeout(Duration.ofSeconds(properties.getLoki().getTimeoutSeconds()))
-                    .block();
-            return parseLogs(response);
-        } catch (WebClientResponseException ex) {
-            throw new RuntimeException("Loki query failed", ex);
+            return parseLogs(fetch(buildQueryRangeUrl(query, rangeStart, rangeEnd)));
         } catch (Exception ex) {
-            String snippet = response == null ? "null" : response.substring(0, Math.min(response.length(), 300));
-            throw new RuntimeException("Failed to parse Loki response: " + ex.getMessage() + " snippet=" + snippet, ex);
+            throw new RuntimeException("Loki query failed: " + ex.getMessage(), ex);
         }
+    }
+
+    private String fetch(URI uri) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(uri)
+                .GET()
+                .timeout(Duration.ofSeconds(properties.getLoki().getTimeoutSeconds()))
+                .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() >= 400) {
+            throw new IllegalStateException(
+                    "HTTP " + response.statusCode() + ": " + response.body());
+        }
+        return response.body();
+    }
+
+    private URI buildQueryRangeUrl(String query, Instant start, Instant end) {
+        String base = requireLokiBaseUrl().replaceAll("/+$", "");
+        String encodedQuery = UriUtils.encodeQueryParam(query, StandardCharsets.UTF_8);
+        return URI.create(base + "/loki/api/v1/query_range?query=" + encodedQuery
+                + "&limit=1000&direction=forward&start=" + toNanos(start) + "&end=" + toNanos(end));
     }
 
     private List<LogEntryDto> parseLogs(String response) throws Exception {
@@ -202,7 +197,6 @@ public class LokiClient {
     }
 
     private static long normalizeToEpochNanos(long value) {
-        // Loki query_range uses nanoseconds; some payloads use seconds.
         if (value < 1_000_000_000_000L) {
             return value * 1_000_000_000L;
         }
@@ -214,7 +208,24 @@ public class LokiClient {
         return field.isMissingNode() || field.isNull() ? defaultValue : field.asText(defaultValue);
     }
 
-    private String toNanos(Instant instant) {
+    private Instant resolveStart(Instant start) {
+        return start != null ? start : Instant.now().minusSeconds(1800);
+    }
+
+    private Instant resolveEnd(Instant end) {
+        return end != null ? end : Instant.now();
+    }
+
+    private String requireLokiBaseUrl() {
+        String baseUrl = properties.getLoki().getBaseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            throw new IllegalStateException(
+                    "observability.loki.base-url is not configured (set OBSERVABILITY_LOKI_BASE_URL)");
+        }
+        return baseUrl.trim();
+    }
+
+    private static String toNanos(Instant instant) {
         return String.valueOf((instant.getEpochSecond() * 1_000_000_000L) + instant.getNano());
     }
 }

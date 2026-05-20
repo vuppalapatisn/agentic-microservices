@@ -53,7 +53,6 @@ class LokiClientTest {
                 """;
 
         var client = new LokiClient(
-                org.springframework.web.reactive.function.client.WebClient.builder(),
                 new com.amol.microservices.observability.config.ObservabilityProperties(),
                 objectMapper);
 

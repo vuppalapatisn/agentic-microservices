@@ -10,11 +10,11 @@ class ReasoningService:
 
     async def summarize(self, messages: list[dict]) -> str:
         try:
-            response = await self.client.responses.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
-                input=messages,
-                max_output_tokens=220,
+                messages=messages,
+                max_tokens=220,
             )
-            return response.output_text.strip()
+            return response.choices[0].message.content.strip()
         except OpenAIError as exc:
             raise RuntimeError(f"OpenAI reasoning failed: {exc}") from exc

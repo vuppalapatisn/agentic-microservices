@@ -50,9 +50,9 @@ class ObservabilityAgentClient:
         payload = await self._get_json("/api/observability/services")
         return payload.get("services", [])
 
-    async def get_logs_by_request_id(self, request_id: str, start_time: str, end_time: str) -> list[LogFinding]:
+    async def get_logs_by_correlation_id(self, correlation_id: str, start_time: str, end_time: str) -> list[LogFinding]:
         payload = await self._get_json(
-            f"/api/observability/logs/request/{request_id}",
+            f"/api/observability/logs/request/{correlation_id}",
             params={"startTime": start_time, "endTime": end_time},
         )
         return [LogFinding.model_validate(item) for item in payload.get("logs", [])]

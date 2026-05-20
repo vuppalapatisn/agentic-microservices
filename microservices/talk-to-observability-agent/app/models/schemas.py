@@ -5,6 +5,13 @@ from pydantic import BaseModel, Field
 
 class InvestigationRequest(BaseModel):
     query: str = Field(min_length=3)
+    correlation_id: str | None = Field(
+        default=None,
+        description="Ecommerce trace ID (from traffic script); used for Loki lookup when not in query",
+        alias="correlationId",
+    )
+
+    model_config = {"populate_by_name": True}
 
 
 class LogFinding(BaseModel):
