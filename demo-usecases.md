@@ -68,7 +68,7 @@ Open http://localhost:8092 and use one of:
 
 ## Use case 2 — Error details in logs (coupon failure)
 
-**Goal:** Explain a failed request from Loki only—no Prometheus metrics. `coupon-service` is not deployed; ecommerce logs an ERROR with stack trace.
+**Goal:** Explain a failed request from Loki only—no Prometheus metrics. Purpose is for agent to understand an error from logs and elaborate on it.; we call a non-existant service from ecommerce-service that results in 404. The agent explains the error based on stack trace in logs.
 
 ### Step 1 — Trigger the error
 

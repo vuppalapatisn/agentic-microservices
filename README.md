@@ -45,16 +45,9 @@ kubectl create secret generic talk-to-observability-agent-secret `
   -n observability
 ```
 
-## Traffic spike demo
+## Demo use cases
 
-```powershell
-pip install -r scripts/requirements.txt
-python scripts/simulate_traffic_spike.py
-```
-
-## Coupon error demo (logs-only investigation)
-
-See **[docs/COUPON_ERROR_DEMO.md](docs/COUPON_ERROR_DEMO.md)** — `POST /apply-coupon` with `DISC20`, then ask the chat for error details by correlation id.
+Slow requests, stack trace details from logs, and heap usage %: **[demo-usecases.md](demo-usecases.md)**
 
 ## Developer guide
 
