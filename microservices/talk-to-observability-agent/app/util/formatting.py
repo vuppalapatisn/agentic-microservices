@@ -23,3 +23,9 @@ def format_rps(value: float) -> str:
     if value >= 10:
         return f"{value:.1f} rps"
     return f"{value:.2f} rps"
+
+
+def format_percent(value: float) -> str:
+    if value < 0:
+        value = 0.0
+    return f"{value:.1f}%"

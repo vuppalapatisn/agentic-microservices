@@ -52,6 +52,10 @@ pip install -r scripts/requirements.txt
 python scripts/simulate_traffic_spike.py
 ```
 
+## Coupon error demo (logs-only investigation)
+
+See **[docs/COUPON_ERROR_DEMO.md](docs/COUPON_ERROR_DEMO.md)** — `POST /apply-coupon` with `DISC20`, then ask the chat for error details by correlation id.
+
 ## Developer guide
 
 APIs, Swagger, Loki/Grafana queries, correlation IDs, port-forwards: **[DEV-Readme.md](DEV-Readme.md)**

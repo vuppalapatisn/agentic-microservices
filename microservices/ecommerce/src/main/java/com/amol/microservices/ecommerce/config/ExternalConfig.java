@@ -18,6 +18,9 @@ public class ExternalConfig {
     @Value("${services.images.base-url:http://images-service:8090}")
     private String imagesServiceBaseUrl;
 
+    @Value("${services.coupon.base-url:http://coupon-service:8090}")
+    private String couponServiceBaseUrl;
+
     public boolean getUseImages() {
         return Boolean.parseBoolean(useImages);
     }
@@ -32,5 +35,9 @@ public class ExternalConfig {
 
     public String getImagesServiceBaseUrl() {
         return imagesServiceBaseUrl;
+    }
+
+    public String getCouponServiceBaseUrl() {
+        return couponServiceBaseUrl;
     }
 }

@@ -52,8 +52,10 @@ class InvestigationContext(BaseModel):
     logs: list[LogFinding]
     error_logs: list[LogFinding]
     heap_metrics: list[MetricFinding]
+    heap_max_metrics: list[MetricFinding] = []
     thread_metrics: list[MetricFinding]
     request_rate_metrics: list[MetricFinding]
+    heap_usage_percent_query: bool = False
 
 
 class InvestigationResponse(BaseModel):

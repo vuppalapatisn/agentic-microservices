@@ -37,6 +37,12 @@ class PrometheusClientTest {
     }
 
     @Test
+    void buildQuery_sumsHeapMaxAcrossAllPools() {
+        String query = client.buildQuery("sum(jvm_memory_max_bytes)", "ecommerce-service");
+        assertEquals("sum(jvm_memory_max_bytes{job=\"ecommerce\",area=\"heap\"})", query);
+    }
+
+    @Test
     void buildQuery_addsHeapLabelForUnsummedMemoryMetrics() {
         String query = client.buildQuery("jvm_memory_used_bytes", "ecommerce-service");
         assertEquals("jvm_memory_used_bytes{job=\"ecommerce\",area=\"heap\"}", query);

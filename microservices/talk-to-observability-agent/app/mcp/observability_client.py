@@ -104,6 +104,15 @@ class ObservabilityAgentClient:
         )
         return [MetricFinding.model_validate(item) for item in payload.get("points", [])]
 
+    async def get_heap_max_metrics(
+        self, service_name: str, start_time: str, end_time: str, step_seconds: int
+    ) -> list[MetricFinding]:
+        payload = await self._get_json(
+            f"/api/observability/metrics/heap-max/{service_name}",
+            params={"startTime": start_time, "endTime": end_time, "stepSeconds": step_seconds},
+        )
+        return [MetricFinding.model_validate(item) for item in payload.get("points", [])]
+
     async def get_thread_metrics(self, service_name: str, start_time: str, end_time: str, step_seconds: int) -> list[MetricFinding]:
         payload = await self._get_json(
             f"/api/observability/metrics/threads/{service_name}",

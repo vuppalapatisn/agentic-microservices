@@ -1,11 +1,14 @@
 from statistics import mean
 
 from app.models.schemas import CorrelationFinding, InvestigationContext, LogFinding, MetricFinding
-from app.util.formatting import format_bytes, format_rps
+from app.util.formatting import format_bytes, format_percent, format_rps
 
 
 class CorrelationEngine:
     def correlate(self, context: InvestigationContext) -> CorrelationFinding:
+        if context.heap_usage_percent_query:
+            return self._correlate_heap_percent(context)
+
         evidence: list[str] = []
         tags: list[str] = []
         scores = {
@@ -15,6 +18,12 @@ class CorrelationEngine:
             "request-specific failure": 0,
             "insufficient telemetry": 0,
         }
+
+        metrics_fetched = bool(
+            context.heap_metrics or context.thread_metrics or context.request_rate_metrics
+        )
+        if not metrics_fetched:
+            self._add_log_error_evidence(context, evidence, scores)
 
         error_count = len(context.error_logs)
         timeout_logs = [log for log in context.logs + context.error_logs if "timeout" in log.message.lower()]
@@ -27,7 +36,7 @@ class CorrelationEngine:
         thread_peak = self._peak(context.thread_metrics)
         thread_avg = self._average(context.thread_metrics)
 
-        if error_count:
+        if error_count and metrics_fetched:
             evidence.append(f"{error_count} error log entries were found for {context.service_name}.")
             scores["traffic overload"] += 1
 
@@ -79,9 +88,51 @@ class CorrelationEngine:
         probable_root_cause = max(scores, key=scores.get)
         return CorrelationFinding(probable_root_cause=probable_root_cause, evidence=evidence, tags=tags)
 
+    def _correlate_heap_percent(self, context: InvestigationContext) -> CorrelationFinding:
+        used = self._latest(context.heap_metrics)
+        max_heap = self._latest(context.heap_max_metrics)
+        evidence: list[str] = []
+        if used is not None and max_heap is not None and max_heap > 0:
+            percent = (used / max_heap) * 100
+            evidence.append(
+                f"Heap usage is {format_percent(percent)} ({format_bytes(used)} of {format_bytes(max_heap)})."
+            )
+        elif used is not None:
+            evidence.append(f"Heap used is {format_bytes(used)}; max heap is unavailable.")
+        else:
+            evidence.append("Heap metrics are unavailable for the selected time window.")
+        return CorrelationFinding(
+            probable_root_cause="heap usage report",
+            evidence=evidence,
+            tags=["heap-usage-percent"],
+        )
+
+    @staticmethod
+    def _add_log_error_evidence(
+        context: InvestigationContext, evidence: list[str], scores: dict[str, int]
+    ) -> None:
+        error_logs = [
+            log
+            for log in context.logs + context.error_logs
+            if log.level.upper() in {"ERROR", "WARN"}
+        ]
+        if error_logs:
+            excerpt = error_logs[0].message[:300]
+            evidence.append(f"Log excerpt: {excerpt}")
+            scores["downstream dependency issue"] += 2
+        if any("coupon" in log.message.lower() for log in error_logs):
+            scores["downstream dependency issue"] += 1
+
     @staticmethod
     def _peak(metrics: list[MetricFinding]) -> float | None:
         return max((metric.value for metric in metrics), default=None)
+
+    @staticmethod
+    def _latest(metrics: list[MetricFinding]) -> float | None:
+        if not metrics:
+            return None
+        latest = max(metrics, key=lambda metric: metric.timestamp)
+        return latest.value
 
     @staticmethod
     def _average(metrics: list[MetricFinding]) -> float | None:

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 import re
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, StateGraph
 
 from app.config.settings import get_settings
 from app.correlation.engine import CorrelationEngine
+from app.graph.classification import classify_investigation
 from app.mcp.observability_client import ObservabilityAgentClient
 from app.models.schemas import (
     CorrelationFinding,
@@ -19,6 +20,7 @@ from app.models.schemas import (
 )
 from app.prompts.reasoning import build_reasoning_messages
 from app.services.reasoning_service import ReasoningService
+from app.util.formatting import format_bytes, format_percent
 from app.util.grafana_links import build_dashboard_url, build_loki_explore_url
 
 
@@ -43,15 +45,20 @@ class InvestigationState(TypedDict, total=False):
     start_time: str
     end_time: str
     issue_type: str
+    needs_logs: bool
+    needs_monitoring: bool
+    heap_usage_percent_query: bool
     fetch_logs: bool
     fetch_error_logs: bool
     fetch_heap_metrics: bool
+    fetch_heap_max_metrics: bool
     fetch_thread_metrics: bool
     fetch_request_rate: bool
     available_services: list[str]
     logs: list[LogFinding]
     error_logs: list[LogFinding]
     heap_metrics: list[MetricFinding]
+    heap_max_metrics: list[MetricFinding]
     thread_metrics: list[MetricFinding]
     request_rate_metrics: list[MetricFinding]
     correlation: CorrelationFinding
@@ -89,16 +96,89 @@ class InvestigationWorkflow:
         graph.add_edge("parse_query_node", "identify_service_node")
         graph.add_edge("identify_service_node", "identify_time_range_node")
         graph.add_edge("identify_time_range_node", "build_investigation_plan_node")
-        graph.add_edge("build_investigation_plan_node", "fetch_logs_node")
-        graph.add_edge("fetch_logs_node", "fetch_error_logs_node")
-        graph.add_edge("fetch_error_logs_node", "fetch_heap_metrics_node")
-        graph.add_edge("fetch_heap_metrics_node", "fetch_thread_metrics_node")
+        graph.add_conditional_edges(
+            "build_investigation_plan_node",
+            self._route_after_plan,
+            {
+                "fetch_logs_node": "fetch_logs_node",
+                "fetch_heap_metrics_node": "fetch_heap_metrics_node",
+                "correlation_node": "correlation_node",
+            },
+        )
+        graph.add_conditional_edges(
+            "fetch_logs_node",
+            self._route_after_logs,
+            {
+                "fetch_error_logs_node": "fetch_error_logs_node",
+                "correlation_node": "correlation_node",
+            },
+        )
+        graph.add_conditional_edges(
+            "fetch_error_logs_node",
+            self._route_after_error_logs,
+            {
+                "fetch_heap_metrics_node": "fetch_heap_metrics_node",
+                "correlation_node": "correlation_node",
+            },
+        )
+        graph.add_conditional_edges(
+            "fetch_heap_metrics_node",
+            self._route_after_heap,
+            {
+                "fetch_thread_metrics_node": "fetch_thread_metrics_node",
+                "correlation_node": "correlation_node",
+            },
+        )
         graph.add_edge("fetch_thread_metrics_node", "fetch_request_rate_node")
-        graph.add_edge("fetch_request_rate_node", "correlation_node")
+        graph.add_conditional_edges(
+            "fetch_request_rate_node",
+            self._route_after_request_rate,
+            {
+                "correlation_node": "correlation_node",
+            },
+        )
         graph.add_edge("correlation_node", "reasoning_node")
         graph.add_edge("reasoning_node", "response_node")
         graph.add_edge("response_node", END)
         return graph.compile()
+
+    @staticmethod
+    def _route_after_plan(
+        state: InvestigationState,
+    ) -> Literal["fetch_logs_node", "fetch_heap_metrics_node", "correlation_node"]:
+        if state.get("needs_logs"):
+            return "fetch_logs_node"
+        if state.get("needs_monitoring"):
+            return "fetch_heap_metrics_node"
+        return "correlation_node"
+
+    @staticmethod
+    def _route_after_logs(
+        state: InvestigationState,
+    ) -> Literal["fetch_error_logs_node", "correlation_node"]:
+        if state.get("fetch_error_logs"):
+            return "fetch_error_logs_node"
+        return "correlation_node"
+
+    @staticmethod
+    def _route_after_error_logs(
+        state: InvestigationState,
+    ) -> Literal["fetch_heap_metrics_node", "correlation_node"]:
+        if state.get("fetch_heap_metrics"):
+            return "fetch_heap_metrics_node"
+        return "correlation_node"
+
+    @staticmethod
+    def _route_after_heap(
+        state: InvestigationState,
+    ) -> Literal["fetch_thread_metrics_node", "correlation_node"]:
+        if state.get("fetch_thread_metrics"):
+            return "fetch_thread_metrics_node"
+        return "correlation_node"
+
+    @staticmethod
+    def _route_after_request_rate(state: InvestigationState) -> Literal["correlation_node"]:
+        return "correlation_node"
 
     async def run(self, request: InvestigationRequest, correlation_id: str) -> InvestigationResponse:
         state: InvestigationState = {
@@ -136,7 +216,7 @@ class InvestigationWorkflow:
         issue_type = "general"
         if "timeout" in lowered:
             issue_type = "timeout"
-        elif "latency" in lowered or "slow" in lowered:
+        elif "latency" in lowered or "slow" in lowered or "slowness" in lowered:
             issue_type = "latency"
         elif "heap" in lowered or "memory" in lowered:
             issue_type = "heap"
@@ -188,19 +268,11 @@ class InvestigationWorkflow:
         }
 
     async def build_investigation_plan_node(self, state: InvestigationState) -> InvestigationState:
-        issue_type = state["issue_type"]
-        request_id = state.get("request_id")
-        return {
-            "fetch_logs": True,
-            "fetch_error_logs": issue_type in {"timeout", "latency", "errors", "general"} or bool(request_id),
-            "fetch_heap_metrics": issue_type in {"timeout", "latency", "heap", "general"},
-            "fetch_thread_metrics": issue_type in {"timeout", "latency", "threads", "general"},
-            "fetch_request_rate": issue_type in {"timeout", "latency", "request-rate", "errors", "general"},
-        }
+        return classify_investigation(state["query"])
 
     async def fetch_logs_node(self, state: InvestigationState) -> InvestigationState:
-        logs = []
-        if state["fetch_logs"]:
+        logs: list[LogFinding] = []
+        if state.get("fetch_logs"):
             if state.get("request_id"):
                 logs = await self.client.get_logs_by_correlation_id(
                     state["request_id"], state["start_time"], state["end_time"]
@@ -212,32 +284,37 @@ class InvestigationWorkflow:
         return {"logs": logs}
 
     async def fetch_error_logs_node(self, state: InvestigationState) -> InvestigationState:
-        error_logs = []
-        if state["fetch_error_logs"]:
+        error_logs: list[LogFinding] = []
+        if state.get("fetch_error_logs"):
             error_logs = await self.client.get_error_logs_by_service(
                 state["service_name"], state["start_time"], state["end_time"]
             )
         return {"error_logs": error_logs}
 
     async def fetch_heap_metrics_node(self, state: InvestigationState) -> InvestigationState:
-        metrics = []
-        if state["fetch_heap_metrics"]:
-            metrics = await self.client.get_heap_metrics(
+        heap_metrics: list[MetricFinding] = []
+        heap_max_metrics: list[MetricFinding] = []
+        if state.get("fetch_heap_metrics"):
+            heap_metrics = await self.client.get_heap_metrics(
                 state["service_name"], state["start_time"], state["end_time"], 30
             )
-        return {"heap_metrics": metrics}
+        if state.get("fetch_heap_max_metrics"):
+            heap_max_metrics = await self.client.get_heap_max_metrics(
+                state["service_name"], state["start_time"], state["end_time"], 30
+            )
+        return {"heap_metrics": heap_metrics, "heap_max_metrics": heap_max_metrics}
 
     async def fetch_thread_metrics_node(self, state: InvestigationState) -> InvestigationState:
-        metrics = []
-        if state["fetch_thread_metrics"]:
+        metrics: list[MetricFinding] = []
+        if state.get("fetch_thread_metrics"):
             metrics = await self.client.get_thread_metrics(
                 state["service_name"], state["start_time"], state["end_time"], 30
             )
         return {"thread_metrics": metrics}
 
     async def fetch_request_rate_node(self, state: InvestigationState) -> InvestigationState:
-        metrics = []
-        if state["fetch_request_rate"]:
+        metrics: list[MetricFinding] = []
+        if state.get("fetch_request_rate"):
             metrics = await self.client.get_request_rate(
                 state["service_name"], state["start_time"], state["end_time"], 30
             )
@@ -253,15 +330,24 @@ class InvestigationWorkflow:
             logs=state.get("logs", []),
             error_logs=state.get("error_logs", []),
             heap_metrics=state.get("heap_metrics", []),
+            heap_max_metrics=state.get("heap_max_metrics", []),
             thread_metrics=state.get("thread_metrics", []),
             request_rate_metrics=state.get("request_rate_metrics", []),
+            heap_usage_percent_query=bool(state.get("heap_usage_percent_query")),
         )
         correlation = self.correlation_engine.correlate(context)
         return {"correlation": correlation}
 
     async def reasoning_node(self, state: InvestigationState) -> InvestigationState:
         correlation = state["correlation"]
-        prompt_payload = {
+        merged_logs = state.get("logs", []) + state.get("error_logs", [])
+        mode = "default"
+        if state.get("heap_usage_percent_query"):
+            mode = "heap_percent"
+        elif state.get("needs_logs") and not state.get("needs_monitoring"):
+            mode = "error_logs"
+
+        prompt_payload: dict[str, Any] = {
             "service": state["service_name"],
             "query": state["query"],
             "issueType": state["issue_type"],
@@ -271,7 +357,19 @@ class InvestigationWorkflow:
             "probableRootCause": correlation.probable_root_cause,
             "evidence": correlation.evidence,
         }
-        summary = await self.reasoning_service.summarize(build_reasoning_messages(prompt_payload))
+        if mode == "error_logs":
+            prompt_payload["logs"] = [log.model_dump() for log in merged_logs]
+        if mode == "heap_percent":
+            used_val = self.correlation_engine._latest(state.get("heap_metrics", []))
+            max_val = self.correlation_engine._latest(state.get("heap_max_metrics", []))
+            if used_val is not None and max_val is not None and max_val > 0:
+                percent = (used_val / max_val) * 100
+                prompt_payload["heapUsagePercent"] = format_percent(percent)
+                prompt_payload["heapUsed"] = format_bytes(used_val)
+                prompt_payload["heapMax"] = format_bytes(max_val)
+            prompt_payload["evidence"] = correlation.evidence
+
+        summary = await self.reasoning_service.summarize(build_reasoning_messages(prompt_payload, mode=mode))
         return {
             "summary": summary,
             "probable_root_cause": correlation.probable_root_cause,
@@ -283,27 +381,34 @@ class InvestigationWorkflow:
         end = self._parse_iso_time(state["end_time"])
         grafana_api = self.settings.grafana_api_base_url
         grafana_ui = self.settings.grafana_base_url
-        loki_url = build_loki_explore_url(
-            grafana_ui,
-            start,
-            end,
-            correlation_id=state.get("request_id"),
-            fallback_loki_uid=self.settings.grafana_loki_datasource_uid,
-            api_base_url=grafana_api,
-        )
-        dashboard_url = build_dashboard_url(
-            grafana_ui,
-            start,
-            end,
-            fallback_dashboard_uid=self.settings.grafana_dashboard_uid,
-            api_base_url=grafana_api,
-        )
-        summary = state["summary"].rstrip(".")
-        if loki_url not in summary:
-            summary = (
-                f"{summary}. View correlated logs in Grafana Explore: {loki_url}. "
-                f"View JVM metrics for the incident window: {dashboard_url}."
+
+        loki_url = None
+        if state.get("needs_logs") and state.get("request_id"):
+            loki_url = build_loki_explore_url(
+                grafana_ui,
+                start,
+                end,
+                correlation_id=state.get("request_id"),
+                fallback_loki_uid=self.settings.grafana_loki_datasource_uid,
+                api_base_url=grafana_api,
             )
+
+        dashboard_url = None
+        if state.get("needs_monitoring"):
+            dashboard_url = build_dashboard_url(
+                grafana_ui,
+                start,
+                end,
+                fallback_dashboard_uid=self.settings.grafana_dashboard_uid,
+                api_base_url=grafana_api,
+            )
+
+        summary = state["summary"].rstrip(".")
+        if loki_url and loki_url not in summary:
+            summary = f"{summary}. View correlated logs in Grafana Explore: {loki_url}."
+        if dashboard_url and dashboard_url not in summary:
+            summary = f"{summary} View JVM metrics for the incident window: {dashboard_url}."
+
         return {
             "grafana_explore_url": loki_url,
             "grafana_dashboard_url": dashboard_url,

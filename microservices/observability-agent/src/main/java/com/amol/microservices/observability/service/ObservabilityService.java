@@ -38,6 +38,10 @@ public class ObservabilityService {
         return prometheusClient.queryRange("sum(jvm_memory_used_bytes)", serviceName, start, end, stepSeconds);
     }
 
+    public MetricsResponseDto getHeapMaxMetrics(String serviceName, Instant start, Instant end, Integer stepSeconds) {
+        return prometheusClient.queryRange("sum(jvm_memory_max_bytes)", serviceName, start, end, stepSeconds);
+    }
+
     public MetricsResponseDto getThreadMetrics(String serviceName, Instant start, Instant end, Integer stepSeconds) {
         return prometheusClient.queryRange("jvm_threads_live_threads", serviceName, start, end, stepSeconds);
     }
