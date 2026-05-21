@@ -11,6 +11,7 @@ data:
       "fiscalYearStartMonth": 0,
       "graphTooltip": 0,
       "id": null,
+      "uid": "ecommerce-observability",
       "links": [],
       "panels": [
         {

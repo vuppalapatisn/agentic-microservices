@@ -17,8 +17,11 @@ kubectl create secret generic talk-to-observability-agent-secret `
 | Ecommerce | http://localhost:8090/ecommerce-service/ecommerceProducts | LoadBalancer |
 | Grafana | http://localhost:3000 | `admin` / `admin` on first login |
 | Prometheus | http://localhost:9090 | |
+| Observability chatbot UI | http://localhost:8092 | Bundled in talk-to-observability-agent image after `start.bat` |
 | Talk-to-observability | http://localhost:8092/docs | FastAPI Swagger |
 | Observability-agent | http://localhost:8091/swagger-ui.html | ClusterIP — port-forward below |
+
+Full chat UI guide: **[chatbot-ui-readme.md](chatbot-ui-readme.md)**
 
 **Port-forward observability-agent:**
 
@@ -27,6 +30,13 @@ kubectl port-forward -n observability svc/observability-agent 8091:8091
 ```
 
 **Product / images** (ClusterIP): `kubectl port-forward -n ecommerce svc/product-service 8090:8090` (same for `images-service`).
+
+## Observability chatbot UI
+
+After `start.bat`, open **http://localhost:8092**. The React UI calls `POST /api/v1/investigate` and shows summary, evidence, root cause, and Grafana links.
+
+- Optional **correlation ID** field — use IDs from `scripts/simulate_traffic_spike.py`
+- Local UI dev (Vite on :5173): see [chatbot-ui-readme.md](chatbot-ui-readme.md)
 
 ## Swagger
 

@@ -32,7 +32,7 @@ if errorlevel 1 goto :fail
 docker build --no-cache -t observability-agent:!IMAGE_TAG! .
 if errorlevel 1 goto :fail
 
-echo [5/12] Building talk-to-observability-agent...
+echo [5/12] Building talk-to-observability-agent (API + chat UI)...
 cd /d "%ROOT_DIR%\microservices\talk-to-observability-agent" || goto :fail
 docker build --no-cache -t talk-to-observability-agent:!IMAGE_TAG! .
 if errorlevel 1 goto :fail
@@ -148,8 +148,12 @@ echo   curl http://localhost:3000
 echo   curl http://localhost:8090/ecommerce-service/ecommerceProducts
 echo   http://localhost:9090
 echo   http://localhost:8092/health
+echo   http://localhost:8092          (observability chatbot UI)
+echo   http://localhost:8092/docs     (FastAPI Swagger)
 echo   kubectl port-forward -n observability svc/observability-agent 8091:8091
 echo   http://localhost:8091/swagger-ui.html
+echo.
+echo Chatbot UI: see chatbot-ui-readme.md
 goto :eof
 
 :fail

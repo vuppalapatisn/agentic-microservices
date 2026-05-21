@@ -31,15 +31,15 @@ This repo is a Kubernetes-native local ecommerce system with:
 ### Observability service
 - `observability-agent`
   - role: REST + MCP access to Prometheus and Loki
-  - namespace: `observability-agent`
+  - namespace: `observability`
 - `talk-to-observability-agent`
   - role: natural-language investigation and RCA over existing telemetry
-  - namespace: `observability-agent`
+  - namespace: `observability`
+  - chat UI: React + Vite + TypeScript, served from FastAPI `static/` at `/`
 
 ### Kubernetes namespaces
 - `ecommerce`
 - `observability`
-- `observability-agent`
 
 ## Technology Baseline
 
@@ -74,7 +74,8 @@ Primary local URLs:
 - Ecommerce Prometheus: `http://localhost:8090/ecommerce-service/actuator/prometheus`
 - Prometheus UI: `http://localhost:9090`
 - Grafana UI: `http://localhost:3000`
-- Talk To Observability: `http://localhost:8092/health`
+- Talk To Observability chat UI: `http://localhost:8092`
+- Talk To Observability API/Swagger: `http://localhost:8092/docs`, `http://localhost:8092/health`
 
 ## Service Discovery
 
@@ -110,7 +111,6 @@ Each service has:
 - `k8s/observability/grafana/`
 
 ### Observability agent manifests
-- `k8s/observability-agent/namespace.yaml`
 - `k8s/observability-agent/configmap.yaml`
 - `k8s/observability-agent/deployment.yaml`
 - `k8s/observability-agent/service.yaml`
@@ -132,7 +132,9 @@ What `start.bat` does now:
 - applies Kubernetes manifests
 - updates deployments to the fresh image tags
 - deploys observability stack
-- deploys `observability-agent` and `talk-to-observability-agent`
+- deploys `observability-agent` and `talk-to-observability-agent` (Docker build includes the chat UI via multi-stage `npm run build`)
+
+After success, chat UI: `http://localhost:8092`. See `chatbot-ui-readme.md`.
 
 This matters because:
 - reusing a static image tag caused stale-image confusion before
@@ -216,10 +218,13 @@ MCP tools:
 
 Source:
 - `microservices/talk-to-observability-agent/`
+- UI: `microservices/talk-to-observability-agent/ui/` (React + Vite + TypeScript)
+- User guide: `chatbot-ui-readme.md`
 
 Endpoints:
 - `GET /health`
 - `POST /api/v1/investigate`
+- `GET /` — chat UI (when `static/` present in image)
 
 Flow:
 - FastAPI request
@@ -233,6 +238,11 @@ Required env:
 - `OPENAI_MODEL`
 - `OBSERVABILITY_AGENT_BASE_URL`
 - `REQUEST_TIMEOUT_SECONDS`
+
+Grafana links (optional):
+- `GRAFANA_BASE_URL` — browser-facing (e.g. `http://localhost:3000`)
+- `GRAFANA_API_BASE_URL` — in-cluster Grafana API for UID resolution
+- `GRAFANA_LOKI_DATASOURCE_UID`, `GRAFANA_DASHBOARD_UID`
 
 ## Database Initialization
 
@@ -303,6 +313,8 @@ Do not switch those back to Hibernate schema creation unless you intentionally r
 - `start.bat`
 - `stop.bat`
 - `README.md`
+- `chatbot-ui-readme.md`
+- `architecture-diagram.md`
 
 ## Mock Data Tooling
 
@@ -357,6 +369,7 @@ When changing logs/observability:
 - Added structured JSON logging and correlation-id propagation.
 - Added observability agent with REST + MCP support.
 - Added `talk-to-observability-agent` using FastAPI + LangGraph over the existing observability-agent.
+- Added observability chatbot UI (React + Vite) bundled in the talk-to-observability-agent Docker image; served at `http://localhost:8092` after `start.bat`.
 
 ### Learnings
 - If local `mvn spring-boot:run` works but Kubernetes does not, check image freshness first.
@@ -371,4 +384,4 @@ When changing logs/observability:
 
 ## Last Updated
 
-`2026-05-16`
+`2026-05-20`

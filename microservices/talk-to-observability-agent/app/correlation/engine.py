@@ -1,7 +1,7 @@
 from statistics import mean
 
 from app.models.schemas import CorrelationFinding, InvestigationContext, LogFinding, MetricFinding
-from app.util.formatting import format_bytes
+from app.util.formatting import format_bytes, format_rps
 
 
 class CorrelationEngine:
@@ -41,7 +41,7 @@ class CorrelationEngine:
 
         if request_rate_peak and request_rate_avg and request_rate_peak > request_rate_avg * 1.8:
             evidence.append(
-                f"Request rate spiked from an average of {request_rate_avg:.2f} rps to {request_rate_peak:.2f} rps."
+                f"Request rate spiked from an average of {format_rps(request_rate_avg)} to a peak of {format_rps(request_rate_peak)}."
             )
             tags.append("request-rate-spike")
             scores["traffic overload"] += 2

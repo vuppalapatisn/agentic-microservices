@@ -119,10 +119,14 @@ public class PrometheusClient {
         return s;
     }
 
-    private String buildQuery(String metricName, String serviceName) {
+    String buildQuery(String metricName, String serviceName) {
         String jobName = toJobName(serviceName);
         if (metricName.contains("{")) {
             return metricName;
+        }
+        if (metricName.startsWith("sum(rate(") && metricName.endsWith("))")) {
+            String rateExpr = metricName.substring(4, metricName.length() - 1);
+            return "sum(" + injectJobIntoRate(rateExpr, jobName) + ")";
         }
         if (metricName.startsWith("rate(")) {
             return injectJobIntoRate(metricName, jobName);

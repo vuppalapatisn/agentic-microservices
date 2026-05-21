@@ -11,6 +11,10 @@ class Settings:
             "http://observability-agent.observability.svc.cluster.local:8091",
         ).strip()
         self.request_timeout_seconds = int(os.getenv("REQUEST_TIMEOUT_SECONDS", "10"))
+        self.startup_validation_retries = int(os.getenv("STARTUP_VALIDATION_RETRIES", "30"))
+        self.startup_validation_retry_seconds = float(
+            os.getenv("STARTUP_VALIDATION_RETRY_SECONDS", "2")
+        )
         self.grafana_base_url = os.getenv("GRAFANA_BASE_URL", "http://localhost:3000").strip()
         self.grafana_api_base_url = os.getenv(
             "GRAFANA_API_BASE_URL",

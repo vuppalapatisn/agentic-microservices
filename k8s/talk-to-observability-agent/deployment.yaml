@@ -25,11 +25,16 @@ spec:
                 optional: true
           ports:
             - containerPort: 8092
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8092
+            periodSeconds: 5
+            failureThreshold: 24
           readinessProbe:
             httpGet:
               path: /health
               port: 8092
-            initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:

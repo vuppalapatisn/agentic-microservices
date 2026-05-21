@@ -43,7 +43,12 @@ public class ObservabilityService {
     }
 
     public MetricsResponseDto getRequestRateMetrics(String serviceName, Instant start, Instant end, Integer stepSeconds) {
-        return prometheusClient.queryRange("rate(http_server_requests_seconds_count[1m])", serviceName, start, end, stepSeconds);
+        return prometheusClient.queryRange(
+                "sum(rate(http_server_requests_seconds_count[1m]))",
+                serviceName,
+                start,
+                end,
+                stepSeconds);
     }
 
     public ServicesResponseDto listObservableServices() {

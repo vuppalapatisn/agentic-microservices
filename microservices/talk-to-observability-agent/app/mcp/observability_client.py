@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from time import perf_counter
 
 import httpx
@@ -22,29 +23,54 @@ class ObservabilityAgentClient:
     async def validate_dependencies(self) -> None:
         if not self.settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is not configured.")
-        start = perf_counter()
-        try:
-            response = await self.client.get(
-                f"{self.base_url}/api/observability/services",
-                headers=self._request_headers(),
-            )
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            body = exc.response.text[:500] if exc.response is not None else ""
-            raise RuntimeError(
-                f"observability-agent returned {exc.response.status_code} during startup validation: {body}"
-            ) from exc
-        except httpx.HTTPError as exc:
-            raise RuntimeError(f"observability-agent is unavailable during startup validation: {exc}") from exc
-        duration_ms = round((perf_counter() - start) * 1000, 2)
-        logger.info(
-            "observability_agent_validation_complete",
-            extra={
-                "service": "talk-to-observability-agent",
-                "correlationId": get_correlation_id(),
-                "durationMs": duration_ms,
-            },
-        )
+
+        url = f"{self.base_url}/api/observability/services"
+        max_attempts = self.settings.startup_validation_retries
+        retry_seconds = self.settings.startup_validation_retry_seconds
+        last_error: Exception | None = None
+
+        for attempt in range(1, max_attempts + 1):
+            start = perf_counter()
+            try:
+                response = await self.client.get(url, headers=self._request_headers())
+                response.raise_for_status()
+                duration_ms = round((perf_counter() - start) * 1000, 2)
+                logger.info(
+                    "observability_agent_validation_complete",
+                    extra={
+                        "service": "talk-to-observability-agent",
+                        "correlationId": get_correlation_id(),
+                        "durationMs": duration_ms,
+                        "attempt": attempt,
+                    },
+                )
+                return
+            except httpx.HTTPStatusError as exc:
+                body = exc.response.text[:500] if exc.response is not None else ""
+                raise RuntimeError(
+                    f"observability-agent returned {exc.response.status_code} during startup validation: {body}"
+                ) from exc
+            except httpx.HTTPError as exc:
+                last_error = exc
+                if attempt >= max_attempts:
+                    break
+                logger.warning(
+                    "observability_agent_validation_retry",
+                    extra={
+                        "service": "talk-to-observability-agent",
+                        "correlationId": get_correlation_id(),
+                        "attempt": attempt,
+                        "maxAttempts": max_attempts,
+                        "retryInSeconds": retry_seconds,
+                        "observabilityAgentBaseUrl": self.base_url,
+                        "error": str(exc),
+                    },
+                )
+                await asyncio.sleep(retry_seconds)
+
+        raise RuntimeError(
+            f"observability-agent is unavailable during startup validation after {max_attempts} attempts: {last_error}"
+        ) from last_error
 
     async def list_observable_services(self) -> list[str]:
         payload = await self._get_json("/api/observability/services")
