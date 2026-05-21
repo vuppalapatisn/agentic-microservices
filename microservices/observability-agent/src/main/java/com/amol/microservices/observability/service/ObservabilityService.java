@@ -35,7 +35,7 @@ public class ObservabilityService {
     }
 
     public MetricsResponseDto getHeapMetrics(String serviceName, Instant start, Instant end, Integer stepSeconds) {
-        return prometheusClient.queryRange("jvm_memory_used_bytes", serviceName, start, end, stepSeconds);
+        return prometheusClient.queryRange("sum(jvm_memory_used_bytes)", serviceName, start, end, stepSeconds);
     }
 
     public MetricsResponseDto getThreadMetrics(String serviceName, Instant start, Instant end, Integer stepSeconds) {

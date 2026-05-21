@@ -97,9 +97,12 @@ If empty: widen time range (e.g. **Last 6 hours**), generate traffic, then redep
 **Metrics** — Explore → Prometheus or dashboard **Ecommerce Observability**:
 
 ```promql
-rate(http_server_requests_seconds_count{job="ecommerce"}[1m])
-jvm_memory_used_bytes{job="ecommerce",area="heap"}
+sum(rate(http_server_requests_seconds_count{job="ecommerce"}[1m]))
+sum(jvm_memory_used_bytes{job="ecommerce",area="heap"})
+sum(jvm_memory_max_bytes{job="ecommerce",area="heap"})
 ```
+
+Dashboard **Heap Space** — used vs capacity. **Request Rate** — total RPS (same query as investigate API).
 
 ## Traffic spike simulation
 

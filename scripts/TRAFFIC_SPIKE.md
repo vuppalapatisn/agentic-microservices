@@ -40,8 +40,8 @@ Press **Ctrl+C** for graceful shutdown.
 
 | Signal | Where |
 |--------|--------|
-| Vertical request-rate spike | Grafana dashboard **Ecommerce Observability** or Prometheus `rate(http_server_requests_seconds_count{job="ecommerce"}[1m])` |
-| Heap increase | `jvm_memory_used_bytes{job="ecommerce",area="heap"}` |
+| Vertical request-rate spike | Grafana **Request Rate** panel or `sum(rate(http_server_requests_seconds_count{job="ecommerce"}[1m]))` |
+| Heap increase | Grafana **Heap Space** panel: `sum(jvm_memory_used_bytes{...})` vs `sum(jvm_memory_max_bytes{...})` |
 | Slow / failing requests | Script stdout + Loki `{namespace="ecommerce", app="ecommerce"}` |
 | Recovery after spike | Metrics flatten when script ends (phase 3 hard stop) |
 

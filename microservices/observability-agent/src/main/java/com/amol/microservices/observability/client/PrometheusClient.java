@@ -128,9 +128,17 @@ public class PrometheusClient {
             String rateExpr = metricName.substring(4, metricName.length() - 1);
             return "sum(" + injectJobIntoRate(rateExpr, jobName) + ")";
         }
+        if (metricName.startsWith("sum(") && metricName.endsWith(")")) {
+            String inner = metricName.substring(4, metricName.length() - 1).trim();
+            return "sum(" + labeledGaugeMetric(inner, jobName) + ")";
+        }
         if (metricName.startsWith("rate(")) {
             return injectJobIntoRate(metricName, jobName);
         }
+        return labeledGaugeMetric(metricName, jobName);
+    }
+
+    private String labeledGaugeMetric(String metricName, String jobName) {
         StringBuilder labels = new StringBuilder("job=\"").append(jobName).append("\"");
         if ("jvm_memory_used_bytes".equals(metricName) || "jvm_memory_max_bytes".equals(metricName)) {
             labels.append(",area=\"heap\"");

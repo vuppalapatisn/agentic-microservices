@@ -16,26 +16,82 @@ data:
       "panels": [
         {
           "datasource": "Prometheus",
-          "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "description": "Total JVM heap (all pools: Eden, Survivor, Old Gen). Compare used vs allocated capacity.",
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "min": 0,
+              "custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never"}
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "Heap max"},
+                "properties": [
+                  {"id": "custom.fillOpacity", "value": 0},
+                  {"id": "custom.lineStyle", "value": {"dash": [10, 10], "fill": "dash"}},
+                  {"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}
+                ]
+              },
+              {
+                "matcher": {"id": "byName", "options": "Heap used"},
+                "properties": [
+                  {"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}
+                ]
+              }
+            ]
+          },
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
           "id": 1,
-          "targets": [{"expr": "jvm_memory_used_bytes{job=\"ecommerce\",area=\"heap\"}", "refId": "A"}],
-          "title": "Heap Used",
+          "options": {
+            "legend": {"displayMode": "list", "placement": "bottom"},
+            "tooltip": {"mode": "multi", "sort": "desc"}
+          },
+          "targets": [
+            {
+              "expr": "sum(jvm_memory_used_bytes{job=\"ecommerce\",area=\"heap\"})",
+              "legendFormat": "Heap used",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(jvm_memory_max_bytes{job=\"ecommerce\",area=\"heap\"})",
+              "legendFormat": "Heap max",
+              "refId": "B"
+            }
+          ],
+          "title": "Heap Space",
           "type": "timeseries"
         },
         {
           "datasource": "Prometheus",
-          "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "description": "Total inbound HTTP requests per second to ecommerce (all endpoints). Matches traffic-spike script and investigate API.",
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "min": 0,
+              "custom": {"drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never"}
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
           "id": 2,
-          "targets": [{"expr": "jvm_memory_max_bytes{job=\"ecommerce\",area=\"heap\"}", "refId": "A"}],
-          "title": "Heap Max",
+          "options": {
+            "legend": {"displayMode": "list", "placement": "bottom"},
+            "tooltip": {"mode": "single", "sort": "none"}
+          },
+          "targets": [
+            {
+              "expr": "sum(rate(http_server_requests_seconds_count{job=\"ecommerce\"}[1m]))",
+              "legendFormat": "Request rate",
+              "refId": "A"
+            }
+          ],
+          "title": "Request Rate",
           "type": "timeseries"
         },
         {
           "datasource": "Prometheus",
           "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
           "id": 3,
           "targets": [{"expr": "jvm_threads_live_threads{job=\"ecommerce\"}", "refId": "A"}],
           "title": "Thread Count",
@@ -44,7 +100,7 @@ data:
         {
           "datasource": "Prometheus",
           "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
           "id": 4,
           "targets": [{"expr": "rate(jvm_gc_pause_seconds_sum{job=\"ecommerce\"}[5m])", "refId": "A"}],
           "title": "GC Activity",

@@ -95,9 +95,11 @@ body {
 
 .bubble {
   max-width: 85%;
+  min-width: 0;
   padding: 0.85rem 1rem;
   border-radius: var(--radius);
   font-size: 0.95rem;
+  overflow-x: hidden;
 }
 
 .user-bubble {
@@ -131,6 +133,18 @@ body {
 
 .summary {
   margin: 0 0 0.75rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.summary .inline-link {
+  color: #93c5fd;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.summary .inline-link:hover {
+  text-decoration: underline;
 }
 
 .badge-row {

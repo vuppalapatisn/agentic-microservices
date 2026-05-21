@@ -14,6 +14,8 @@ Optional for UI development only: Node.js LTS (`npm` on PATH). Not required when
 cd C:\git\microservices-ecommerce-2
 start.bat    # build, deploy, wait for rollouts
 stop.bat     # tear down workloads
+restart--redeploy-service.bat talk-to-observability-agent   # rebuild one service
+restart--redeploy-service.bat --help                        # list all service names
 ```
 
 ## URLs (localhost)

@@ -1,4 +1,9 @@
 import type { InvestigationResponse } from "../types";
+import {
+  LOGS_LINK_LABEL,
+  METRICS_LINK_LABEL,
+  renderSummaryWithLinks,
+} from "../utils/summaryLinks";
 
 type Props = {
   response: InvestigationResponse;
@@ -15,7 +20,15 @@ export default function AssistantMessage({ response }: Props) {
           <span className="meta">ID {response.correlationId}</span>
         </div>
       )}
-      <p className="summary">{response.summary}</p>
+      <p className="summary">
+        {isWelcome
+          ? response.summary
+          : renderSummaryWithLinks(
+              response.summary,
+              response.grafanaExploreUrl,
+              response.grafanaDashboardUrl,
+            )}
+      </p>
       {response.evidence.length > 0 && (
         <ul className="evidence">
           {response.evidence.map((item) => (
@@ -27,12 +40,12 @@ export default function AssistantMessage({ response }: Props) {
         <div className="links">
           {response.grafanaExploreUrl && (
             <a href={response.grafanaExploreUrl} target="_blank" rel="noreferrer">
-              Open logs in Grafana Explore
+              {LOGS_LINK_LABEL}
             </a>
           )}
           {response.grafanaDashboardUrl && (
             <a href={response.grafanaDashboardUrl} target="_blank" rel="noreferrer">
-              Open metrics dashboard
+              {METRICS_LINK_LABEL}
             </a>
           )}
         </div>
