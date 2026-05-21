@@ -1,6 +1,8 @@
 # microservices-ecommerce-2
 
 Kubernetes-native ecommerce demo with Prometheus, Loki, Grafana, observability-agent, talk-to-observability-agent, and a browser chat UI for investigations.
+<img width="1536" height="1024" alt="Architecture" src="https://github.com/user-attachments/assets/17d86eae-755b-40a9-b020-de8b6d7db2b3" />
+
 
 ## Prerequisites
 
