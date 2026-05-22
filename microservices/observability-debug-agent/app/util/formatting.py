@@ -29,3 +29,10 @@ def format_percent(value: float) -> str:
     if value < 0:
         value = 0.0
     return f"{value:.1f}%"
+
+
+def format_count(value: float) -> str:
+    """Whole-number gauges (e.g. jvm_threads_live_threads)."""
+    if value < 0:
+        value = 0.0
+    return str(int(round(value)))

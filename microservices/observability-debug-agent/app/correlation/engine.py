@@ -1,7 +1,7 @@
 from statistics import mean
 
 from app.models.schemas import CorrelationFinding, InvestigationContext, LogFinding, MetricFinding
-from app.util.formatting import format_bytes, format_percent, format_rps
+from app.util.formatting import format_bytes, format_count, format_percent, format_rps
 
 
 class CorrelationEngine:
@@ -55,16 +55,15 @@ class CorrelationEngine:
             tags.append("request-rate-spike")
             scores["traffic overload"] += 2
 
+        self._append_heap_telemetry(context, evidence)
+
         if heap_peak and heap_avg and heap_peak > heap_avg * 1.5:
-            evidence.append(
-                f"Heap usage rose from an average of {format_bytes(heap_avg)} to a peak of {format_bytes(heap_peak)}."
-            )
             tags.append("heap-spike")
             scores["resource saturation"] += 2
 
         if thread_peak and thread_avg and thread_peak > max(thread_avg * 1.5, thread_avg + 20):
             evidence.append(
-                f"Thread count rose from an average of {thread_avg:.2f} to a peak of {thread_peak:.2f}."
+                f"Live thread count rose from an average of {format_count(thread_avg)} to a peak of {format_count(thread_peak)}."
             )
             tags.append("thread-spike")
             scores["resource saturation"] += 2
@@ -102,6 +101,35 @@ class CorrelationEngine:
         else:
             evidence.append("Heap metrics are unavailable for the selected time window.")
         return CorrelationFinding(probable_root_cause="heap usage report", evidence=evidence)
+
+    def _append_heap_telemetry(self, context: InvestigationContext, evidence: list[str]) -> None:
+        if context.heap_usage_percent_query:
+            return
+        heap_avg = self._average(context.heap_metrics)
+        heap_peak = self._peak(context.heap_metrics)
+        if heap_avg is None and heap_peak is None:
+            return
+
+        max_avg = self._average(context.heap_max_metrics)
+        max_peak = self._peak(context.heap_max_metrics) if context.heap_max_metrics else None
+
+        if (
+            heap_avg is not None
+            and heap_peak is not None
+            and max_avg
+            and max_avg > 0
+        ):
+            peak_cap = max_peak if max_peak and max_peak > 0 else max_avg
+            avg_pct = (heap_avg / max_avg) * 100
+            peak_pct = (heap_peak / peak_cap) * 100
+            evidence.append(
+                f"Heap usage averaged {format_percent(avg_pct)} ({format_bytes(heap_avg)} of {format_bytes(max_avg)}); "
+                f"peak {format_percent(peak_pct)} ({format_bytes(heap_peak)} of {format_bytes(peak_cap)})."
+            )
+        elif heap_avg is not None and heap_peak is not None:
+            evidence.append(
+                f"Heap used averaged {format_bytes(heap_avg)} (peak {format_bytes(heap_peak)})."
+            )
 
     @staticmethod
     def _add_log_error_evidence(

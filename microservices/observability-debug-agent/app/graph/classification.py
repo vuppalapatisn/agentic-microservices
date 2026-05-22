@@ -79,7 +79,7 @@ def classify_investigation(query: str) -> dict[str, bool]:
         fetch_request_rate = False
     elif needs_monitoring:
         fetch_heap_metrics = True
-        fetch_heap_max_metrics = False
+        fetch_heap_max_metrics = True
         fetch_thread_metrics = True
         fetch_request_rate = True
     else:

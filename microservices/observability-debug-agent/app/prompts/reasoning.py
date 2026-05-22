@@ -28,8 +28,10 @@ def build_reasoning_messages(payload: dict, mode: str = "default") -> list[dict]
             "content": (
                 "You are an observability assistant. "
                 "Use only the structured findings provided. "
-                "Keep heap/memory sizes exactly as given (MB or GB). "
+                "Keep heap/memory sizes and percentages exactly as given. "
                 "Keep request rates exactly as given (rps). "
+                "Thread counts are whole numbers; preserve 'average' and 'peak' wording from evidence. "
+                "When evidence includes heap usage, mention it in the summary. "
                 "Respond concisely with a probable root cause and supporting evidence."
             ),
         },

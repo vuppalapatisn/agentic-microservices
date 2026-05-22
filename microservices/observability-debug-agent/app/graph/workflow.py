@@ -408,15 +408,27 @@ class InvestigationWorkflow:
         }
         if mode == "error_logs":
             prompt_payload["logs"] = [log.model_dump() for log in merged_logs]
-        if mode == "heap_percent":
-            used_val = self.correlation_engine._latest(state.get("heap_metrics", []))
-            max_val = self.correlation_engine._latest(state.get("heap_max_metrics", []))
-            if used_val is not None and max_val is not None and max_val > 0:
-                percent = (used_val / max_val) * 100
-                prompt_payload["heapUsagePercent"] = format_percent(percent)
-                prompt_payload["heapUsed"] = format_bytes(used_val)
-                prompt_payload["heapMax"] = format_bytes(max_val)
-            prompt_payload["evidence"] = correlation.evidence
+        if state.get("needs_monitoring"):
+            heap_metrics = state.get("heap_metrics", [])
+            heap_max_metrics = state.get("heap_max_metrics", [])
+            if mode == "heap_percent":
+                used_val = self.correlation_engine._latest(heap_metrics)
+                max_val = self.correlation_engine._latest(heap_max_metrics)
+                if used_val is not None and max_val is not None and max_val > 0:
+                    prompt_payload["heapUsagePercent"] = format_percent((used_val / max_val) * 100)
+                    prompt_payload["heapUsed"] = format_bytes(used_val)
+                    prompt_payload["heapMax"] = format_bytes(max_val)
+            elif mode == "default":
+                used_peak = self.correlation_engine._peak(heap_metrics)
+                max_peak = self.correlation_engine._peak(heap_max_metrics)
+                if used_peak is not None and max_peak is not None and max_peak > 0:
+                    prompt_payload["heapUsagePercentAtPeak"] = format_percent((used_peak / max_peak) * 100)
+                    prompt_payload["heapUsedAtPeak"] = format_bytes(used_peak)
+                    prompt_payload["heapMaxAtPeak"] = format_bytes(max_peak)
+                used_avg = self.correlation_engine._average(heap_metrics)
+                max_avg = self.correlation_engine._average(heap_max_metrics)
+                if used_avg is not None and max_avg is not None and max_avg > 0:
+                    prompt_payload["heapUsagePercentAverage"] = format_percent((used_avg / max_avg) * 100)
 
         summary = await self.reasoning_service.summarize(build_reasoning_messages(prompt_payload, mode=mode))
         return {
