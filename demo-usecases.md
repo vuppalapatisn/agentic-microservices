@@ -37,7 +37,7 @@ python scripts/simulate_traffic_spike.py
 Watch stdout for a slow or timeout line, for example:
 
 ```text
-timestamp=... correlationId=<uuid> status=timeout latencyMs=3000 error=timeout
+timestamp=... correlationId=<uuid> status=timeout responseTime=3000ms error=timeout
 ```
 
 Copy the `correlationId`. More detail: [scripts/TRAFFIC_SPIKE.md](scripts/TRAFFIC_SPIKE.md).
@@ -72,13 +72,27 @@ Open http://localhost:8092 and use one of:
 
 ### Step 1 — Trigger the error
 
-```powershell
-curl -i -X POST http://localhost:8090/ecommerce-service/apply-coupon `
-  -H "Content-Type: text/plain" `
-  -d "DISC20"
+**Windows CMD or PowerShell** — use **one line** (backtick `` ` `` line breaks are PowerShell-only; in CMD they run as separate broken commands):
+
+```bat
+curl.exe -i -X POST http://localhost:8090/ecommerce-service/apply-coupon -H "Content-Type: text/plain" -d DISC20
 ```
 
-- Expect **502 Bad Gateway** (or similar non-2xx).
+**PowerShell alternative** (`curl` is an alias for `Invoke-WebRequest`; use `curl.exe` or):
+
+```powershell
+Invoke-WebRequest -Uri "http://localhost:8090/ecommerce-service/apply-coupon" -Method POST -ContentType "text/plain" -Body "DISC20"
+```
+
+To see response headers including correlation id:
+
+```powershell
+$r = Invoke-WebRequest -Uri "http://localhost:8090/ecommerce-service/apply-coupon" -Method POST -ContentType "text/plain" -Body "DISC20" -SkipHttpErrorCheck
+$r.Headers["X-Correlation-Id"]
+$r.StatusCode
+```
+
+- Expect **502 Bad Gateway** (or similar non-2xx), not **415** (415 means `Content-Type: text/plain` or body was not sent — usually a split/broken multi-line command).
 - Copy **`X-Correlation-Id`** from the response headers.
 
 Log line shape (in Loki):
@@ -86,8 +100,6 @@ Log line shape (in Loki):
 ```text
 coupon_apply_failed couponCode=DISC20 targetUrl=http://coupon-service:8090/coupons/DISC20
 ```
-
-More detail: [docs/COUPON_ERROR_DEMO.md](docs/COUPON_ERROR_DEMO.md).
 
 ### Step 2 — Verify in Loki (optional)
 

@@ -2,7 +2,6 @@ package com.amol.microservices.observability.service;
 
 import com.amol.microservices.observability.client.LokiClient;
 import com.amol.microservices.observability.client.PrometheusClient;
-import com.amol.microservices.observability.dto.LogEntryDto;
 import com.amol.microservices.observability.dto.LogsResponseDto;
 import com.amol.microservices.observability.dto.MetricsResponseDto;
 import com.amol.microservices.observability.dto.ServicesResponseDto;

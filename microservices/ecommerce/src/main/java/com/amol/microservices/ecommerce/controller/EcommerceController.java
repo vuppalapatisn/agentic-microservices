@@ -3,7 +3,6 @@ package com.amol.microservices.ecommerce.controller;
 import com.amol.microservices.ecommerce.assembler.ProductAssembler;
 import com.amol.microservices.ecommerce.client.CouponClient;
 import com.amol.microservices.ecommerce.entity.CouponApplyErrorResponse;
-import com.amol.microservices.ecommerce.entity.EcommerceProduct;
 import com.amol.microservices.ecommerce.entity.EcommerceProductResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -14,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClientException;
 
-import java.util.List;
 import java.util.regex.Pattern;
 
 /**

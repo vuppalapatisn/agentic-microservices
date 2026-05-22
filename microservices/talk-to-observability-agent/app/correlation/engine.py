@@ -86,7 +86,7 @@ class CorrelationEngine:
             scores["insufficient telemetry"] += 1
 
         probable_root_cause = max(scores, key=scores.get)
-        return CorrelationFinding(probable_root_cause=probable_root_cause, evidence=evidence, tags=tags)
+        return CorrelationFinding(probable_root_cause=probable_root_cause, evidence=evidence)
 
     def _correlate_heap_percent(self, context: InvestigationContext) -> CorrelationFinding:
         used = self._latest(context.heap_metrics)
@@ -101,11 +101,7 @@ class CorrelationEngine:
             evidence.append(f"Heap used is {format_bytes(used)}; max heap is unavailable.")
         else:
             evidence.append("Heap metrics are unavailable for the selected time window.")
-        return CorrelationFinding(
-            probable_root_cause="heap usage report",
-            evidence=evidence,
-            tags=["heap-usage-percent"],
-        )
+        return CorrelationFinding(probable_root_cause="heap usage report", evidence=evidence)
 
     @staticmethod
     def _add_log_error_evidence(
@@ -117,8 +113,10 @@ class CorrelationEngine:
             if log.level.upper() in {"ERROR", "WARN"}
         ]
         if error_logs:
-            excerpt = error_logs[0].message[:300]
-            evidence.append(f"Log excerpt: {excerpt}")
+            for log in error_logs:
+                evidence.append(
+                    f"[{log.level}] {log.service} @ {log.timestamp}: {log.message}"
+                )
             scores["downstream dependency issue"] += 2
         if any("coupon" in log.message.lower() for log in error_logs):
             scores["downstream dependency issue"] += 1

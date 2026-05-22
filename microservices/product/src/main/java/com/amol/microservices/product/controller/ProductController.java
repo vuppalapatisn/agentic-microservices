@@ -15,12 +15,8 @@ public class ProductController {
     @Autowired
     ProductRepository productRepository;
 
-//    @Autowired
-//    ExternalConfig externalConfig;
-
     @GetMapping("/products")
     public ProductResponse getAllProducts(){
-//        System.out.println(externalConfig.getName());
         return new ProductResponse(productRepository.findAll());
     }
 }

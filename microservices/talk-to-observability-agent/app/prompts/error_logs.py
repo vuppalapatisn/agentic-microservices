@@ -8,7 +8,7 @@ def build_error_log_messages(payload: dict) -> list[dict]:
             "content": (
                 "You are an observability assistant. Use only the JSON findings provided. "
                 "Explain the error and root cause for the given correlation id. "
-                "Include HTTP/status hints, downstream service name, and stack trace excerpt from log messages. "
+                "Include HTTP/status hints, downstream service name, and the full stack trace from the log messages provided. "
                 "Do not invent metrics. If logs show coupon-service, 404, or unreachable host, state that clearly. "
                 "Be concise (3-6 sentences)."
             ),

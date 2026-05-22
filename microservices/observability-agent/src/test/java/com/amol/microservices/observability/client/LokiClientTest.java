@@ -64,6 +64,8 @@ class LokiClientTest {
         assertEquals(2, logs.size());
         assertEquals("ecommerce", logs.get(0).service());
         assertEquals("INFO", logs.get(0).level());
-        assertEquals("ok", logs.get(0).message());
+        assertEquals(
+                "{\"service\":\"ecommerce\",\"level\":\"INFO\",\"message\":\"ok\"}",
+                logs.get(0).message());
     }
 }

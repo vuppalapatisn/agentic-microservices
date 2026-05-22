@@ -153,8 +153,8 @@ public class LokiClient {
                 JsonNode logNode = objectMapper.readTree(rawLog);
                 String service = textValue(logNode, "service", fallbackService);
                 String level = textValue(logNode, "level", "INFO");
-                String message = textValue(logNode, "message", rawLog);
-                return new LogEntryDto(timestamp, service, level, message);
+                // Keep the full JSON log line as stored in Loki (message, stackTrace, MDC, etc.)
+                return new LogEntryDto(timestamp, service, level, rawLog);
             } catch (Exception ex) {
                 return new LogEntryDto(timestamp, fallbackService, "INFO", rawLog);
             }

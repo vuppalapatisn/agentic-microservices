@@ -72,10 +72,6 @@ class ObservabilityAgentClient:
             f"observability-agent is unavailable during startup validation after {max_attempts} attempts: {last_error}"
         ) from last_error
 
-    async def list_observable_services(self) -> list[str]:
-        payload = await self._get_json("/api/observability/services")
-        return payload.get("services", [])
-
     async def get_logs_by_correlation_id(self, correlation_id: str, start_time: str, end_time: str) -> list[LogFinding]:
         payload = await self._get_json(
             f"/api/observability/logs/request/{correlation_id}",

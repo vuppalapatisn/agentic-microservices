@@ -25,7 +25,7 @@ export default function Chat() {
           "Hi — I can investigate latency, errors, and resource usage using logs and metrics from your observability stack. Ask a question or pick a suggestion below.",
         probableRootCause: "—",
         evidence: [
-          "Tip: paste a correlation ID from the traffic script for request-level tracing.",
+          "",
         ],
       },
     },
@@ -53,6 +53,7 @@ export default function Chat() {
     };
     setMessages((prev) => [...prev, userMessage]);
     setQuery("");
+    setCorrelationId("");
     setLoading(true);
     scrollToBottom();
 

@@ -45,17 +45,15 @@ def log_event(
     *,
     correlation_id: str,
     status: str,
-    latency_ms: float,
+    response_time_ms: float,
     error: str = "",
-    user_id: str = "",
 ) -> None:
     """Structured single-line log for local correlation with Loki/Grafana."""
     line = (
         f"timestamp={utc_timestamp()} "
         f"correlationId={correlation_id} "
-        f"userId={user_id} "
         f"status={status} "
-        f"latencyMs={latency_ms:.0f}"
+        f"responseTime={response_time_ms:.0f}ms"
     )
     if error:
         line += f" error={error}"
@@ -155,24 +153,23 @@ class TrafficSpikeSimulator:
     def request_stop(self) -> None:
         self._stop.set()
 
-    def _build_headers(self) -> tuple[dict[str, str], str, str]:
+    def _build_headers(self) -> tuple[dict[str, str], str]:
         correlation_id = str(uuid.uuid4())
-        user_id = str(uuid.uuid4())
         product_id = str(random.randint(self.config.product_id_min, self.config.product_id_max))
         headers = {
             "X-Request-ID": str(uuid.uuid4()),
             "X-Correlation-Id": correlation_id,
-            "X-User-ID": user_id,
+            "X-User-ID": str(uuid.uuid4()),
             "X-Product-ID": product_id,
             "Accept": "application/json",
         }
-        return headers, correlation_id, user_id
+        return headers, correlation_id
 
     async def _one_request(self) -> None:
         assert self._session is not None
         assert self._semaphore is not None
 
-        headers, correlation_id, user_id = self._build_headers()
+        headers, correlation_id = self._build_headers()
         start = time.perf_counter()
         status_code = "0"
         error = ""
@@ -184,60 +181,55 @@ class TrafficSpikeSimulator:
                 async with self._session.get(self.config.url, headers=headers) as response:
                     await response.read()
                     status_code = str(response.status)
-                    latency_ms = (time.perf_counter() - start) * 1000
+                    response_time_ms = (time.perf_counter() - start) * 1000
                     if response.status >= 400:
                         error = f"http_{response.status}"
                         log_event(
                             correlation_id=correlation_id,
                             status=status_code,
-                            latency_ms=latency_ms,
+                            response_time_ms=response_time_ms,
                             error=error,
-                            user_id=user_id,
                         )
-                        await self.stats.record_error(latency_ms, is_timeout=False)
+                        await self.stats.record_error(response_time_ms, is_timeout=False)
                     else:
                         log_event(
                             correlation_id=correlation_id,
                             status=status_code,
-                            latency_ms=latency_ms,
-                            user_id=user_id,
+                            response_time_ms=response_time_ms,
                         )
-                        await self.stats.record_success(latency_ms)
+                        await self.stats.record_success(response_time_ms)
             except asyncio.TimeoutError:
-                latency_ms = (time.perf_counter() - start) * 1000
+                response_time_ms = (time.perf_counter() - start) * 1000
                 error = "timeout"
                 log_event(
                     correlation_id=correlation_id,
                     status="timeout",
-                    latency_ms=latency_ms,
+                    response_time_ms=response_time_ms,
                     error=error,
-                    user_id=user_id,
                 )
-                await self.stats.record_error(latency_ms, is_timeout=True)
+                await self.stats.record_error(response_time_ms, is_timeout=True)
             except aiohttp.ClientError as exc:
-                latency_ms = (time.perf_counter() - start) * 1000
+                response_time_ms = (time.perf_counter() - start) * 1000
                 error = type(exc).__name__
                 log_event(
                     correlation_id=correlation_id,
                     status="error",
-                    latency_ms=latency_ms,
+                    response_time_ms=response_time_ms,
                     error=error,
-                    user_id=user_id,
                 )
-                await self.stats.record_error(latency_ms, is_timeout=False)
+                await self.stats.record_error(response_time_ms, is_timeout=False)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                latency_ms = (time.perf_counter() - start) * 1000
+                response_time_ms = (time.perf_counter() - start) * 1000
                 error = type(exc).__name__
                 log_event(
                     correlation_id=correlation_id,
                     status="error",
-                    latency_ms=latency_ms,
+                    response_time_ms=response_time_ms,
                     error=error,
-                    user_id=user_id,
                 )
-                await self.stats.record_error(latency_ms, is_timeout=False)
+                await self.stats.record_error(response_time_ms, is_timeout=False)
 
     def _track_task(self, task: asyncio.Task) -> None:
         self._inflight.add(task)
@@ -277,8 +269,8 @@ class TrafficSpikeSimulator:
             print(
                 "stats "
                 f"rps={snap['rps']:.1f} "
-                f"avgLatencyMs={snap['avg_ms']:.0f} "
-                f"p95LatencyMs={snap['p95_ms']:.0f} "
+                f"avgResponseTime={snap['avg_ms']:.0f}ms "
+                f"p95ResponseTime={snap['p95_ms']:.0f}ms "
                 f"timeouts={snap['timeouts']} "
                 f"success={snap['success']} "
                 f"errors={snap['errors']}",

@@ -50,7 +50,7 @@ Press **Ctrl+C** for graceful shutdown.
 1. Find a slow/timeout line in script output:
 
    ```
-   timestamp=... correlationId=... status=timeout latencyMs=3000 error=timeout
+   timestamp=... correlationId=... status=timeout responseTime=3000ms error=timeout
    ```
 
 2. In Grafana **Explore → Loki**:

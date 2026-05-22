@@ -25,10 +25,6 @@ public class ExternalConfig {
         return Boolean.parseBoolean(useImages);
     }
 
-    public void setUseImages(String useImages) {
-        this.useImages = useImages;
-    }
-
     public String getProductServiceBaseUrl() {
         return productServiceBaseUrl;
     }

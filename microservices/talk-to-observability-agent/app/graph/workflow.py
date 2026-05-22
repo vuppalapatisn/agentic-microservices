@@ -54,7 +54,6 @@ class InvestigationState(TypedDict, total=False):
     fetch_heap_max_metrics: bool
     fetch_thread_metrics: bool
     fetch_request_rate: bool
-    available_services: list[str]
     logs: list[LogFinding]
     error_logs: list[LogFinding]
     heap_metrics: list[MetricFinding]
@@ -130,13 +129,7 @@ class InvestigationWorkflow:
             },
         )
         graph.add_edge("fetch_thread_metrics_node", "fetch_request_rate_node")
-        graph.add_conditional_edges(
-            "fetch_request_rate_node",
-            self._route_after_request_rate,
-            {
-                "correlation_node": "correlation_node",
-            },
-        )
+        graph.add_edge("fetch_request_rate_node", "correlation_node")
         graph.add_edge("correlation_node", "reasoning_node")
         graph.add_edge("reasoning_node", "response_node")
         graph.add_edge("response_node", END)
@@ -174,10 +167,6 @@ class InvestigationWorkflow:
     ) -> Literal["fetch_thread_metrics_node", "correlation_node"]:
         if state.get("fetch_thread_metrics"):
             return "fetch_thread_metrics_node"
-        return "correlation_node"
-
-    @staticmethod
-    def _route_after_request_rate(state: InvestigationState) -> Literal["correlation_node"]:
         return "correlation_node"
 
     async def run(self, request: InvestigationRequest, correlation_id: str) -> InvestigationResponse:
@@ -234,12 +223,11 @@ class InvestigationWorkflow:
         }
 
     async def identify_service_node(self, state: InvestigationState) -> InvestigationState:
-        services = await self.client.list_observable_services()
         lowered = state["query"].lower()
         for alias, service_name in SERVICE_ALIASES.items():
             if alias in lowered or service_name in lowered:
-                return {"service_name": service_name, "available_services": services}
-        return {"service_name": "ecommerce-service", "available_services": services}
+                return {"service_name": service_name}
+        return {"service_name": "ecommerce-service"}
 
     async def identify_time_range_node(self, state: InvestigationState) -> InvestigationState:
         query = state["query"]
@@ -324,7 +312,6 @@ class InvestigationWorkflow:
         context = InvestigationContext(
             service_name=state["service_name"],
             request_id=state.get("request_id"),
-            issue_type=state["issue_type"],
             start_time=state["start_time"],
             end_time=state["end_time"],
             logs=state.get("logs", []),

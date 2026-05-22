@@ -40,13 +40,11 @@ class MetricFinding(BaseModel):
 class CorrelationFinding(BaseModel):
     probable_root_cause: str
     evidence: list[str]
-    tags: list[str]
 
 
 class InvestigationContext(BaseModel):
     service_name: str
     request_id: str | None = None
-    issue_type: str
     start_time: str
     end_time: str
     logs: list[LogFinding]

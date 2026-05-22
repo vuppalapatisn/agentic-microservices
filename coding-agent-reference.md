@@ -1,387 +1,409 @@
-# Agentic Microservices - Coding Agent Reference
+# Coding Agent Reference
 
-**Repository:** `amollimaye/agentic-microservices`  
-**Primary Language:** Java  
+**Repository:** `microservices-ecommerce-2` (local Kubernetes ecommerce + observability demo)  
+**Primary languages:** Java 21 (Spring Boot), Python 3 (FastAPI), TypeScript (React chat UI)  
 **License:** MIT
 
-## Purpose
+Use this file as the **single technical reference** when changing code in this repo. If this file conflicts with an old comment or plan doc, **trust the code paths listed here**.
 
-Use this file as the working reference when adding new features to the repo.
+---
 
-This repo is a Kubernetes-native local ecommerce system with:
-- 3 Spring Boot microservices
-- 1 Spring Boot observability MCP service
-- 1 Python FastAPI investigation service
-- Prometheus, Loki, Promtail, Grafana
-- local orchestration through `start.bat` / `stop.bat`
+## 1. What this repo is
 
-## Current Architecture
+| Layer | Components |
+|-------|------------|
+| **Business microservices (3)** | `ecommerce`, `product`, `images` — namespace `ecommerce` |
+| **Observability services (2)** | `observability-agent` (Java REST + MCP), `talk-to-observability-agent` (Python LangGraph + chat UI) — namespace `observability` |
+| **Observability stack** | Prometheus, Loki, Promtail, Grafana — namespace `observability` |
+| **Orchestration** | `start.bat` / `stop.bat` / `restart--redeploy-service.bat` (Windows); Kubernetes only (no docker-compose for apps) |
 
-### Application services
-- `ecommerce`
-  - context path: `/ecommerce-service`
-  - role: aggregates product + image data
-- `product`
-  - context path: `/product-service`
-  - role: serves product catalog data from H2
-- `images`
-  - context path: `/image-service`
-  - role: serves image metadata from H2
+**Not in this repo:** `coupon-service` is referenced by ecommerce but **never deployed** (intentional demo failure).
 
-### Observability service
+---
+
+## 2. Service catalog (authoritative)
+
+### 2.1 Ecommerce microservices
+
+| Service | K8s deployment | Context path | Port | Namespace |
+|---------|----------------|--------------|------|-----------|
+| ecommerce | `ecommerce` | `/ecommerce-service` | 8090 | `ecommerce` |
+| product | `product` | `/product-service` | 8090 | `ecommerce` |
+| images | `images` | `/image-service` | 8090 | `ecommerce` |
+
+**Ecommerce role:** Aggregates product + optional image data; exposes demo endpoints.
+
+| Method | Path (after context path) | Purpose |
+|--------|---------------------------|---------|
+| `GET` | `/ecommerceProducts` | Main catalog API |
+| `POST` | `/apply-coupon` | Demo error path (`Content-Type: text/plain`, body = exactly 6 alphanumeric chars, e.g. `DISC20`) |
+
+**Coupon flow (demo only):**
+- `CouponClient` → `GET {services.coupon.base-url}/coupons/{code}` (default `http://coupon-service:8090`)
+- On failure: `log.error("coupon_apply_failed couponCode={} targetUrl={}", ...)` with stack trace; HTTP **502** + JSON `CouponApplyErrorResponse`
+- Config: `services.coupon.base-url` in `application.properties`; env `SERVICES_COUPON_BASE_URL` in `k8s/ecommerce/configmap.yaml`
+
+**Product / images:** H2 in-memory DB; SQL init via `schema.sql` + `data.sql` (see §8).
+
+### 2.2 Observability-agent (Java)
+
+| Item | Value |
+|------|--------|
+| Source | `microservices/observability-agent/` |
+| K8s | `k8s/observability-agent/` |
+| Base path | `/api/observability` |
+| Port | 8091 (cluster); local Swagger often needs port-forward |
+
+**REST endpoints (talk-to-observability-agent calls these via HTTP, not MCP):**
+
+| Method | Path | Query params | Returns |
+|--------|------|--------------|---------|
+| `GET` | `/logs/request/{correlationId}` | `startTime`, `endTime` (ISO-8601, optional) | Logs for correlation ID (Loki, namespaces `ecommerce` + `observability`) |
+| `GET` | `/logs/service/{serviceName}` | `startTime`, `endTime` | Service logs |
+| `GET` | `/logs/errors/{serviceName}` | `startTime`, `endTime` | ERROR/WARN logs |
+| `GET` | `/metrics/heap/{serviceName}` | `startTime`, `endTime`, `stepSeconds` | Heap **used** (PromQL below) |
+| `GET` | `/metrics/heap-max/{serviceName}` | `startTime`, `endTime`, `stepSeconds` | Heap **max** (PromQL below) |
+| `GET` | `/metrics/threads/{serviceName}` | `startTime`, `endTime`, `stepSeconds` | Live threads |
+| `GET` | `/metrics/request-rate/{serviceName}` | `startTime`, `endTime`, `stepSeconds` | HTTP request rate |
+| `GET` | `/services` | — | Static list: `product-service`, `images-service`, `ecommerce-service` |
+
+**PromQL passed to Prometheus (do not regress):**
+
+| Metric API | Metric expression in `ObservabilityService` | Resolved example (ecommerce) |
+|------------|---------------------------------------------|----------------------------|
+| heap | `sum(jvm_memory_used_bytes)` | `sum(jvm_memory_used_bytes{job="ecommerce",area="heap"})` |
+| heap-max | `sum(jvm_memory_max_bytes)` | `sum(jvm_memory_max_bytes{job="ecommerce",area="heap"})` |
+| request-rate | `sum(rate(http_server_requests_seconds_count[1m]))` | `sum(rate(http_server_requests_seconds_count{job="ecommerce"}[1m]))` |
+| threads | `jvm_threads_live_threads` | `jvm_threads_live_threads{job="ecommerce"}` |
+
+**Service name → Prometheus `job`:** `ecommerce-service` → `ecommerce` (strip `-service` suffix in `PrometheusClient.toJobName()`).
+
+**MCP tools** (`ObservabilityTools`, Spring AI): same capabilities as REST except **no `get_heap_max_metrics` tool** — only REST has heap-max. MCP is optional for external clients; **talk-to uses REST only**.
+
+### 2.3 Talk-to-observability-agent (Python + UI)
+
+| Item | Value |
+|------|--------|
+| Source | `microservices/talk-to-observability-agent/` |
+| UI | `microservices/talk-to-observability-agent/ui/` (React + Vite) |
+| K8s | `k8s/talk-to-observability-agent/` |
+| Port | 8092 (NodePort / ingress to localhost) |
+
+**HTTP API:**
+
+| Method | Path | Body |
+|--------|------|------|
+| `GET` | `/health` | — |
+| `POST` | `/api/v1/investigate` | `{ "query": string, "correlationId"?: string }` |
+| `GET` | `/` | Chat UI (static, baked into Docker image) |
+| — | `/docs` | OpenAPI / Swagger |
+
+**Processing pipeline:**
+1. LangGraph workflow (`app/graph/workflow.py`)
+2. Keyword classification (`app/graph/classification.py`) → `needs_logs`, `needs_monitoring`, `heap_usage_percent_query`, `fetch_*`
+3. Conditional fetches via `ObservabilityAgentClient` (`app/mcp/observability_client.py`) — **REST to observability-agent**
+4. Deterministic correlation (`app/correlation/engine.py`)
+5. OpenAI summary (`app/services/reasoning_service.py`) — prompt mode: `default` | `error_logs` | `heap_percent`
+
+**Workflow diagram:** `microservices/talk-to-observability-agent/app/graph/workflow-diagram.md`
+
+---
+
+## 3. Investigation modes (must not break)
+
+All three modes use **`POST /api/v1/investigate`** (or chat UI). Routing is **rule-based on lowercase query text** in `classify_investigation()` — no ML.
+
+| Mode | Example query | `needs_logs` | `needs_monitoring` | `heap_usage_percent_query` | Fetches | Grafana in response |
+|------|---------------|--------------|--------------------|-----------------------------|---------|---------------------|
+| **1. Slow / traffic spike** | `Find reason for slowness for correlation id <uuid>` | Y | Y | N | logs + error logs + heap + threads + request rate | Explore + dashboard |
+| **2. Error / coupon** | `Give me stack trace of error for request <uuid>` | Y | N | N | logs + error logs only | Explore only |
+| **3. Heap %** | `What is the heap usage of ecommerce-service?` | N | Y | Y | heap used + heap max only | Dashboard only |
+
+**Classification rules (summary):**
+- Monitoring keywords → `needs_monitoring`: `slow`, `slowness`, `latency`, `timeout`, `heap`, `memory`, `thread`, `rate`, `rps`, `traffic`, `load`, `metric`, `metrics`, `prometheus`, `saturation`, `overload`, `spike`
+- Log/error keywords → contribute to `needs_logs`: `error`, `fail`, `failure`, `exception`, `stack`, `trace`, `log`, `logs`, `404`, `500`, `502`, `coupon`, `details`
+- Investigation keywords → also `needs_logs`: `slow`, `slowness`, `latency`, `timeout`, `correlation`, `request id`, `requestid`
+- **Heap % detector:** monitoring + (`heap`|`memory`) + (`usage`|`used`|`percent`|`%`|`how much`) + **no** investigation keywords + **no** log/error keywords
+- **Default** (no keywords): `needs_logs=Y`, `needs_monitoring=Y`
+- **Critical:** `slow` / `slowness` / `latency` always → logs **and** monitoring (full path)
+
+**Heap % answer:** Latest Prometheus point: `percent = used / max * 100`; evidence like `Heap usage is 42.3% (28.01 MB of 66.15 MB).`
+
+**Demo steps:** `demo-usecases.md`  
+**Traffic script:** `scripts/simulate_traffic_spike.py` — see `scripts/TRAFFIC_SPIKE.md`
+
+---
+
+## 4. Local URLs (localhost)
+
+| What | URL |
+|------|-----|
+| Ecommerce products | http://localhost:8090/ecommerce-service/ecommerceProducts |
+| Ecommerce apply-coupon | `POST` http://localhost:8090/ecommerce-service/apply-coupon |
+| Ecommerce actuator | http://localhost:8090/ecommerce-service/actuator |
+| Ecommerce Prometheus scrape | http://localhost:8090/ecommerce-service/actuator/prometheus |
+| Grafana | http://localhost:3000 |
+| Prometheus UI | http://localhost:9090 |
+| Chat UI | http://localhost:8092 |
+| Talk-to Swagger | http://localhost:8092/docs |
+| Observability-agent Swagger | http://localhost:8091/swagger-ui.html *(requires port-forward to pod)* |
+
+---
+
+## 5. Inter-service DNS (required)
+
+Use **Kubernetes DNS hostnames only** inside the cluster:
+
+| Caller | Target | URL pattern |
+|--------|--------|-------------|
+| ecommerce | product | `http://product-service:8090` |
+| ecommerce | images | `http://images-service:8090` |
+| ecommerce | coupon (not deployed) | `http://coupon-service:8090` |
+| talk-to | observability-agent | `http://observability-agent.observability.svc.cluster.local:8091` |
+| observability-agent | Loki / Prometheus | from `k8s/observability-agent/configmap.yaml` |
+
+**Do not reintroduce:** `HOST_IP`, Consul, nginx service discovery, or docker-compose for app wiring.
+
+---
+
+## 6. Build and deploy
+
+### 6.1 Full stack
+
+```bat
+start.bat    REM build all images (timestamp tag), apply manifests, wait for rollouts
+stop.bat     REM tear down workloads
+```
+
+`start.bat` uses a **new timestamp Docker tag every run** and updates deployments — this is required behavior (avoids stale images).
+
+### 6.2 Single-service redeploy
+
+```bat
+restart--redeploy-service.bat <service> [service2 ...]
+restart--redeploy-service.bat --help
+```
+
+**Custom-built (Maven + Docker + `kubectl set image`):**
+- `ecommerce` (alias `ecommerce-service`)
+- `product` (alias `product-service`)
+- `images` (alias `images-service`)
 - `observability-agent`
-  - role: REST + MCP access to Prometheus and Loki
-  - namespace: `observability`
-- `talk-to-observability-agent`
-  - role: natural-language investigation and RCA over existing telemetry
-  - namespace: `observability`
-  - chat UI: React + Vite + TypeScript, served from FastAPI `static/` at `/`
+- `talk-to-observability-agent` (includes `npm run build` for UI in Dockerfile)
 
-### Kubernetes namespaces
-- `ecommerce`
-- `observability`
+**Manifest-only rollouts (no app jar build):**
+- `grafana`, `prometheus`, `loki`, `promtail`, `ingress`
 
-## Technology Baseline
+### 6.3 Maven rule for coding agents
 
-### App services
-- Java `21`
-- Spring Boot `3.3.5`
-- Maven
-- Docker base image: `eclipse-temurin:21-jdk-alpine`
+**Do not run Maven automatically.** After Java code changes, tell the user to run Maven (or use `restart--redeploy-service.bat`, which runs `mvn clean package` for Java services). Verify compile output from the user.
 
-Common app dependencies:
-- `spring-boot-starter-web`
-- `spring-boot-starter-actuator`
-- `spring-boot-starter-test`
-- `micrometer-registry-prometheus`
-- `logstash-logback-encoder`
+**Typical redeploy after Java + Python changes:**
+```bat
+restart--redeploy-service.bat ecommerce observability-agent talk-to-observability-agent
+```
 
-Extra dependencies:
-- `product`, `images`
-  - `spring-boot-starter-data-jpa`
-  - `h2`
+---
 
-### Observability agent
-- Java `21`
-- Spring Boot `3.x`
-- Spring AI MCP Server (WebMVC)
+## 7. Kubernetes layout
 
-## Runtime URLs
+| Path | Contents |
+|------|----------|
+| `k8s/namespace.yaml` | `ecommerce` namespace |
+| `k8s/ecommerce/`, `k8s/product/`, `k8s/images/` | configmap, deployment, service each |
+| `k8s/ingress/` | Ingress rules |
+| `k8s/observability/namespace.yaml` | `observability` namespace |
+| `k8s/observability/prometheus/`, `loki/`, `promtail/`, `grafana/` | Stack manifests |
+| `k8s/observability-agent/` | Observability-agent |
+| `k8s/talk-to-observability-agent/` | Talk-to + `secret-example.yaml` (OpenAI key template) |
 
-Primary local URLs:
-- App: `http://localhost:8090/ecommerce-service/ecommerceProducts`
-- Ecommerce actuator: `http://localhost:8090/ecommerce-service/actuator`
-- Ecommerce Prometheus: `http://localhost:8090/ecommerce-service/actuator/prometheus`
-- Prometheus UI: `http://localhost:9090`
-- Grafana UI: `http://localhost:3000`
-- Talk To Observability chat UI: `http://localhost:8092`
-- Talk To Observability API/Swagger: `http://localhost:8092/docs`, `http://localhost:8092/health`
+Each app service manifest set: `configmap.yaml`, `deployment.yaml`, `service.yaml`.
 
-## Service Discovery
+---
 
-Internal service calls use Kubernetes DNS only:
-- `http://product-service:8090`
-- `http://images-service:8090`
+## 8. Configuration sync rule
 
-Do not reintroduce:
-- `HOST_IP`
-- `consul`
-- `nginx`
-- `docker-compose` service discovery
+**Spring `application.properties` and `k8s/*/configmap.yaml` must stay aligned.**
 
-## Kubernetes Layout
+Env vars use relaxed binding (e.g. `SERVICES_COUPON_BASE_URL` → `services.coupon.base-url`).
 
-### App manifests
-- `k8s/namespace.yaml`
-- `k8s/ecommerce/`
-- `k8s/product/`
-- `k8s/images/`
-- `k8s/ingress/`
+Talk-to config: `k8s/talk-to-observability-agent/configmap.yaml` — keys must match `app/config/settings.py`.
 
-Each service has:
-- `configmap.yaml`
-- `deployment.yaml`
-- `service.yaml`
+**One-time secret (survives `start.bat`):**
+```powershell
+kubectl create secret generic talk-to-observability-agent-secret `
+  --from-literal=OPENAI_API_KEY=your-key-here `
+  -n observability
+```
 
-### Observability manifests
-- `k8s/observability/namespace.yaml`
-- `k8s/observability/prometheus/`
-- `k8s/observability/loki/`
-- `k8s/observability/promtail/`
-- `k8s/observability/grafana/`
+**Talk-to environment variables:**
 
-### Observability agent manifests
-- `k8s/observability-agent/configmap.yaml`
-- `k8s/observability-agent/deployment.yaml`
-- `k8s/observability-agent/service.yaml`
+| Variable | Purpose | Default in code |
+|----------|---------|-----------------|
+| `OPENAI_API_KEY` | Required for investigate | — |
+| `OPENAI_MODEL` | Chat model | `gpt-4.1-mini` |
+| `OBSERVABILITY_AGENT_BASE_URL` | REST base | `http://observability-agent.observability.svc.cluster.local:8091` |
+| `REQUEST_TIMEOUT_SECONDS` | HTTP client timeout | `10` |
+| `STARTUP_VALIDATION_RETRIES` | Wait for observability-agent | `30` |
+| `STARTUP_VALIDATION_RETRY_SECONDS` | Retry interval | `2` |
+| `GRAFANA_BASE_URL` | Links in chat (browser) | `http://localhost:3000` |
+| `GRAFANA_API_BASE_URL` | UID resolution (in-cluster) | `http://grafana.observability.svc.cluster.local:3000` |
+| `GRAFANA_LOKI_DATASOURCE_UID` | Explore link | `loki` |
+| `GRAFANA_DASHBOARD_UID` | Dashboard link | `ecommerce-observability` |
 
-### Talk To Observability manifests
-- `k8s/talk-to-observability-agent/configmap.yaml`
-- `k8s/talk-to-observability-agent/deployment.yaml`
-- `k8s/talk-to-observability-agent/service.yaml`
-- `k8s/talk-to-observability-agent/secret-example.yaml`
+---
 
-## Build And Startup
+## 9. Observability conventions
 
-### Normal way to start everything
-- `start.bat`
+### 9.1 Logging
 
-What `start.bat` does now:
-- builds fresh Docker images for app services and observability services
-- uses a new timestamp tag on each run
-- applies Kubernetes manifests
-- updates deployments to the fresh image tags
-- deploys observability stack
-- deploys `observability-agent` and `talk-to-observability-agent` (Docker build includes the chat UI via multi-stage `npm run build`)
+- JSON to stdout (Logstash encoder)
+- Fields: `timestamp`, `service`, `level`, `correlationId`, `thread`, `logger`, `message`
+- **Correlation header:** `X-Correlation-Id` — generated if missing; propagated ecommerce → downstream via `RestTemplate` interceptor + MDC
 
-After success, chat UI: `http://localhost:8092`. See `chatbot-ui-readme.md`.
+### 9.2 Prometheus metrics scraped
 
-This matters because:
-- reusing a static image tag caused stale-image confusion before
-- the timestamp-tag flow is the current known-good behavior
+From actuator `/actuator/prometheus` on each app service:
 
-### Stop everything
-- `stop.bat`
-
-## Observability
-
-### Logging
-- JSON logs to stdout
-- fields:
-  - `timestamp`
-  - `service`
-  - `level`
-  - `correlationId`
-  - `thread`
-  - `logger`
-  - `message`
-
-### Correlation ID
-- header: `X-Correlation-Id`
-- preserved if present
-- generated if absent
-- propagated from `ecommerce` to downstream services
-- stored in MDC as `correlationId`
-
-### Metrics
-Expected actuator path per service:
-- `/ecommerce-service/actuator/prometheus`
-- `/product-service/actuator/prometheus`
-- `/image-service/actuator/prometheus`
-
-Metrics currently intended for scraping:
-- `jvm_memory_used_bytes`
-- `jvm_memory_max_bytes`
+- `jvm_memory_used_bytes`, `jvm_memory_max_bytes`
 - `jvm_threads_live_threads`
-- `jvm_gc_pause_seconds_count`
-- `jvm_gc_pause_seconds_sum`
-- `jvm_gc_pause_seconds_max`
+- `jvm_gc_pause_seconds_*`
 - `http_server_requests_seconds_count`
 
-### Grafana
-- datasource: Prometheus
-- datasource: Loki
-- dashboard: ecommerce JVM metrics
+Grafana dashboard: `k8s/observability/grafana/dashboard-configmap.yaml` (aligned with `sum(...)` queries above).
 
-### Grafana logs
-Use Grafana `Explore` with datasource `Loki`.
+### 9.3 Loki
 
-Common queries:
-- `{namespace="ecommerce"}`
-- `{namespace="ecommerce",app="ecommerce"}`
-- `{namespace="ecommerce"} |= "some-correlation-id"`
+- App logs: `{namespace="ecommerce", app="<service>"}` where app is `ecommerce`, `product`, or `images`
+- Correlation search: `{namespace="ecommerce"} |= "<correlationId>"`
 
-## Observability Agent
+---
 
-Source:
-- `microservices/observability-agent/`
+## 10. Database init (product, images)
 
-REST endpoints:
-- `/api/observability/logs/request/{requestId}`
-- `/api/observability/logs/service/{serviceName}`
-- `/api/observability/logs/errors/{serviceName}`
-- `/api/observability/metrics/heap/{serviceName}`
-- `/api/observability/metrics/threads/{serviceName}`
-- `/api/observability/metrics/request-rate/{serviceName}`
-- `/api/observability/services`
+**Current required settings (do not revert without explicit redesign):**
 
-MCP tools:
-- `get_logs_by_request_id`
-- `get_logs_by_service`
-- `get_error_logs_by_service`
-- `get_heap_metrics`
-- `get_thread_metrics`
-- `get_request_rate`
-- `list_observable_services`
+```properties
+spring.sql.init.mode=always
+spring.jpa.defer-datasource-initialization=true
+spring.jpa.hibernate.ddl-auto=none
+```
 
-## Talk To Observability Agent
+Plus `schema.sql` and `data.sql` on classpath.
 
-Source:
-- `microservices/talk-to-observability-agent/`
-- UI: `microservices/talk-to-observability-agent/ui/` (React + Vite + TypeScript)
-- User guide: `chatbot-ui-readme.md`
+---
 
-Endpoints:
-- `GET /health`
-- `POST /api/v1/investigate`
-- `GET /` — chat UI (when `static/` present in image)
+## 11. Technology baseline
 
-Flow:
-- FastAPI request
-- LangGraph workflow
-- observability-agent REST fetches
-- deterministic Python correlation
-- OpenAI summary
+| Area | Version / stack |
+|------|-----------------|
+| Java | 21 |
+| Spring Boot (apps) | 3.3.5 |
+| Spring Boot (observability-agent) | 3.x |
+| Python | FastAPI, LangGraph, httpx, Pydantic |
+| UI | React, Vite, TypeScript |
+| Docker base (Java) | `eclipse-temurin:21-jdk-alpine` |
+| Build | Maven (Java), pip (scripts), npm (UI, in Docker build) |
 
-Required env:
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL`
-- `OBSERVABILITY_AGENT_BASE_URL`
-- `REQUEST_TIMEOUT_SECONDS`
+Common Java deps: `spring-boot-starter-web`, `spring-boot-starter-actuator`, `micrometer-registry-prometheus`, `logstash-logback-encoder`.  
+Product/images add: `spring-boot-starter-data-jpa`, H2.
 
-Grafana links (optional):
-- `GRAFANA_BASE_URL` — browser-facing (e.g. `http://localhost:3000`)
-- `GRAFANA_API_BASE_URL` — in-cluster Grafana API for UID resolution
-- `GRAFANA_LOKI_DATASOURCE_UID`, `GRAFANA_DASHBOARD_UID`
+---
 
-## Database Initialization
+## 12. Feature development rules
 
-`product` and `images` use H2 with SQL init files.
+1. **Do not break the three investigation modes** (§3). Run demos in `demo-usecases.md` after talk-to/workflow changes.
+2. Keep REST API paths stable unless the task explicitly changes contracts.
+3. Keep context paths: `/ecommerce-service`, `/product-service`, `/image-service`.
+4. Use Kubernetes DNS for inter-service URLs.
+5. When changing Java config, update **both** `application.properties` and the matching `k8s/*/configmap.yaml`.
+6. For new Prometheus gauges used in investigations, use **`sum(...)` across JVM pools** where applicable (heap used/max).
+7. Prefer **minimal diffs** — no new microservices unless requested; `coupon-service` stays undeployed.
+8. **talk-to stays thin:** fetch telemetry → deterministic correlation → OpenAI last.
+9. Local canonical deploy path is `start.bat` / `restart--redeploy-service.bat`, not ad-hoc `spring-boot:run` alone.
+10. Do not add a custom actuator endpoint with id `prometheus` (use Boot’s built-in export).
 
-Important current behavior:
-- `schema.sql`
-- `data.sql`
-- `spring.sql.init.mode=always`
-- `spring.jpa.defer-datasource-initialization=true`
-- `spring.jpa.hibernate.ddl-auto=none`
+---
 
-Do not switch those back to Hibernate schema creation unless you intentionally redesign DB init.
+## 13. Files to open first (by task)
 
-## Known Good / Known Bad
+| Task | Paths |
+|------|--------|
+| Ecommerce API / coupon | `microservices/ecommerce/.../controller/EcommerceController.java`, `client/CouponClient.java`, `config/ExternalConfig.java`, `k8s/ecommerce/configmap.yaml` |
+| Investigation routing | `microservices/talk-to-observability-agent/app/graph/classification.py`, `workflow.py` |
+| Correlation / evidence | `app/correlation/engine.py`, `app/util/formatting.py` |
+| LLM prompts | `app/prompts/reasoning.py`, `app/prompts/error_logs.py` |
+| Observability REST / PromQL | `microservices/observability-agent/.../ObservabilityService.java`, `PrometheusClient.java`, `ObservabilityController.java` |
+| Talk-to HTTP client | `app/mcp/observability_client.py` |
+| Chat UI | `microservices/talk-to-observability-agent/ui/src/` |
+| Prometheus scrape | `k8s/observability/prometheus/configmap.yaml` |
+| Grafana panels | `k8s/observability/grafana/dashboard-configmap.yaml` |
+| Traffic demo | `scripts/simulate_traffic_spike.py`, `scripts/TRAFFIC_SPIKE.md` |
+
+---
+
+## 14. Documentation index
+
+| Doc | Purpose |
+|-----|---------|
+| `README.md` | Quick start, URLs, OpenAI secret |
+| `demo-usecases.md` | **All three investigation demos** (authoritative steps) |
+| `DEV-Readme.md` | APIs, port-forwards, Loki/PromQL examples |
+| `chatbot-ui-readme.md` | Chat UI usage and local UI dev |
+| `architecture-diagram.md` | System Mermaid diagram |
+| `microservices/talk-to-observability-agent/app/graph/workflow-diagram.md` | LangGraph routing |
+| `scripts/TRAFFIC_SPIKE.md` | Traffic spike script |
+| `coding-agent-reference.md` | This file |
+
+---
+
+## 15. Verification checklist
+
+| Change type | Check |
+|-------------|--------|
+| Ecommerce | `GET http://localhost:8090/ecommerce-service/ecommerceProducts` |
+| Coupon demo | `POST /apply-coupon` with `DISC20` → non-2xx + `X-Correlation-Id` |
+| Metrics | `http://localhost:8090/ecommerce-service/actuator/prometheus` |
+| Slow investigation | Traffic script → chat with slowness + correlation id → heap + RPS in evidence |
+| Error investigation | apply-coupon → chat with error/stack wording → logs only, Explore only |
+| Heap % | Chat: `What is the heap usage of ecommerce-service?` → percent + MB, no logs |
+| Talk-to health | `http://localhost:8092/health` |
+
+---
+
+## 16. Known good vs known bad
 
 ### Known good
-- app data endpoint returns products at `localhost:8090`
-- `start.bat` timestamp-tag deployment fixed stale image issues
-- readiness/liveness currently use `/actuator/health`
 
-### Known bad patterns
-- static Docker tag reuse for app images
-- conflicting DB init (`ddl-auto=create` plus `schema.sql`)
-- assuming local `mvn spring-boot:run` behavior matches Kubernetes runtime
-- reusing actuator endpoint id `prometheus` in a custom endpoint class
+- Timestamp-tagged images via `start.bat` / `restart--redeploy-service.bat`
+- Probes on `/actuator/health` with correct context-path prefix in K8s
+- Boot 3 H2 init via SQL scripts (not Hibernate `ddl-auto=create`)
+- `sum(jvm_memory_*_bytes)` and `sum(rate(http_server_requests_seconds_count[1m]))` in observability-agent
+- Conditional LangGraph skips unused fetches
+- Chat UI served from talk-to image at `:8092`
 
-## Feature Development Rules
+### Known bad (do not repeat)
 
-1. Keep existing REST APIs stable unless the feature explicitly requires API change.
-2. Preserve current context paths:
-   - `/ecommerce-service`
-   - `/product-service`
-   - `/image-service`
-3. Prefer Kubernetes DNS names for inter-service calls.
-4. Keep app services deployable independently.
-5. When changing runtime behavior, update both:
-   - app `application.properties`
-   - Kubernetes `ConfigMap` env overrides
-6. If you add metrics/logging/config behavior, check both local Spring Boot and Kubernetes runtime.
-7. For any new container/runtime change, assume `start.bat` is the canonical local deployment flow.
+- Static Docker tag reuse (`:latest` only) without `kubectl set image`
+- `ddl-auto=create` conflicting with `schema.sql`
+- Raw per-pool heap series without `sum()` for investigations
+- `HOST_IP` / Consul / compose-based discovery
+- Assuming `mvn spring-boot:run` proves Kubernetes image/config parity
+- Deploying `coupon-service` for the error demo (breaks the intended failure mode)
 
-## Files To Check First For New Features
+---
 
-### App code
-- `microservices/ecommerce/src/main/java/...`
-- `microservices/product/src/main/java/...`
-- `microservices/images/src/main/java/...`
+## 17. Changelog (agent-relevant)
 
-### App config
-- `microservices/*/src/main/resources/application.properties`
-- `microservices/*/src/main/resources/logback-spring.xml`
+| Date | Change |
+|------|--------|
+| 2026-05-20 | Three investigation modes; conditional LangGraph; `heap-max` REST endpoint |
+| 2026-05-20 | Ecommerce `POST /apply-coupon` + `CouponClient` → undeployed `coupon-service` |
+| 2026-05-20 | PromQL fixes: `sum()` for heap and request rate |
+| 2026-05-20 | Talk-to chat UI in Docker; Grafana link helpers in UI |
+| 2026-05-20 | `restart--redeploy-service.bat` for selective redeploys |
+| 2026-05-20 | Removed dead code: unused `list_observable_services` in talk-to workflow, `CorrelationFinding.tags`, duplicate coupon doc (content in `demo-usecases.md`) |
 
-### K8s runtime config
-- `k8s/ecommerce/configmap.yaml`
-- `k8s/product/configmap.yaml`
-- `k8s/images/configmap.yaml`
-- `k8s/*/deployment.yaml`
+---
 
-### Observability
-- `k8s/observability/prometheus/configmap.yaml`
-- `k8s/observability/promtail/configmap.yaml`
-- `k8s/observability/grafana/`
-- `microservices/observability-agent/`
-- `microservices/talk-to-observability-agent/`
-
-### Local orchestration
-- `start.bat`
-- `stop.bat`
-- `README.md`
-- `chatbot-ui-readme.md`
-- `architecture-diagram.md`
-
-## Mock Data Tooling
-
-Current files:
-- `mock-observability-data.bat`
-- `scripts/generate_mock_observability_data.py`
-- `mock-data-generation-prompt.md`
-
-Purpose:
-- generate synthetic metrics/logs for demos and observability workflows
-
-## Common Verification Targets
-
-When changing application behavior:
-- `http://localhost:8090/ecommerce-service/ecommerceProducts`
-
-When changing actuator/metrics:
-- `http://localhost:8090/ecommerce-service/actuator`
-- `http://localhost:8090/ecommerce-service/actuator/prometheus`
-- `http://localhost:9090`
-
-When changing logs/observability:
-- `http://localhost:3000`
-
-## Fixes Done And Learnings
-
-### Fixes done
-- Removed old runtime assumptions:
-  - `consul`
-  - `nginx`
-  - `HOST_IP`
-  - compose-based service discovery
-- Moved app services to:
-  - Java `21`
-  - Spring Boot `3.3.5`
-- Updated test scaffolds from JUnit 4 to JUnit 5.
-- Fixed probe restarts for `product` and `images` by using:
-  - `/product-service/actuator/health`
-  - `/image-service/actuator/health`
-  instead of readiness/liveness paths that returned `404`
-- Fixed empty product/image data after Boot 3 migration by using:
-  - `spring.sql.init.mode=always`
-  - `spring.jpa.defer-datasource-initialization=true`
-  - `spring.jpa.hibernate.ddl-auto=none`
-- Fixed Kubernetes runtime overrides by aligning `k8s/*/configmap.yaml` with application property changes.
-- Fixed stale image problems by changing `start.bat` to use fresh timestamp-tagged Docker images every run and forcing deployment image updates.
-- Added minimal observability stack:
-  - Prometheus
-  - Loki
-  - Promtail
-  - Grafana
-- Added structured JSON logging and correlation-id propagation.
-- Added observability agent with REST + MCP support.
-- Added `talk-to-observability-agent` using FastAPI + LangGraph over the existing observability-agent.
-- Added observability chatbot UI (React + Vite) bundled in the talk-to-observability-agent Docker image; served at `http://localhost:8092` after `start.bat`.
-
-### Learnings
-- If local `mvn spring-boot:run` works but Kubernetes does not, check image freshness first.
-- In this repo, Kubernetes `ConfigMap` env values can override `application.properties`; both must be kept in sync.
-- Boot 3 migration can break H2 init silently if SQL init settings are not explicit.
-- `ExitCode 143` with healthy startup logs usually points to probe failures, not app crashes.
-- Reusing a static Docker tag like `:v2` is unreliable for rapid local Kubernetes iteration.
-- For actuator debugging, the `/actuator` index is the fastest truth source for what is actually exposed.
-- Do not create a custom actuator endpoint with id `prometheus` when Spring Boot already provides the built-in Prometheus endpoint.
-- Do not assume a fix tested with `spring-boot:run` automatically proves the containerized runtime is using the same code/config.
-- `talk-to-observability-agent` should stay thin: deterministic telemetry fetch + correlation first, OpenAI reasoning second.
-
-## Last Updated
-
-`2026-05-20`
+**Last updated:** 2026-05-20
