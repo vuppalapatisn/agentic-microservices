@@ -1,8 +1,21 @@
 # microservices-ecommerce-2
 
-Kubernetes-native ecommerce demo with Prometheus, Loki, Grafana, observability-server, observability-debug-agent, and a browser chat UI for investigations.
+- Why did the request respond so slowly in production ?
+- What is the heap usage right now ?
+- What are the details of this error when calling an API ?
 
+These are some very common questions that a software engineer faces for their production applications. They need to have strong basics on memory management and log analysis. So, in case of Java applications, they would need to check monitoring in application like graphana. See the trends for heap size, request rate, GC etc. They would also need to correlate the logs in log aggregators like splunk or graylog for microservices.
+
+In case of production issues, time is especially critical and if we can automate that analysis, we are able to solve the problems faster.
+
+With this problem statement in mind, I built an observability MCP server and an observability agent to help users in faster analysis of such issues. The MCP server reads aggregated logs and monitoring data (like JVM heap size, request rate) of microservices. Agent gathers this data as per the request and sends to LLM. LLM makes sense of the data and provides needed information of the investigation.
+I have used Spring AI for MCP server and langgraph for the agent. I use OpenAI API for LLM.
 ![Architecture Diagram](Architecture%20diagram.png)
+
+## Demo use cases
+
+Slow requests, stack trace details from logs, and heap usage %: **[demo-usecases.md](demo-usecases.md)**
+
 
 ## Prerequisites
 
@@ -42,10 +55,6 @@ Create OpenAI secret once in namespace `observability` (survives `start.bat`). *
 ```bat
 kubectl create secret generic observability-debug-agent-secret --from-literal=OPENAI_API_KEY=your-key-here -n observability
 ```
-
-## Demo use cases
-
-Slow requests, stack trace details from logs, and heap usage %: **[demo-usecases.md](demo-usecases.md)**
 
 ## Developer guide
 
