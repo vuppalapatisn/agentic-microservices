@@ -51,13 +51,13 @@ data:
               __path__: /var/log/pods/observability_observability-server-*/observability-server/*.log
         pipeline_stages:
           - cri: {}
-      - job_name: talk-to-observability-agent
+      - job_name: observability-debug-agent
         static_configs:
           - targets: [localhost]
             labels:
               namespace: observability
-              app: talk-to-observability-agent
-              __path__: /var/log/pods/observability_talk-to-observability-agent-*/talk-to-observability-agent/*.log
+              app: observability-debug-agent
+              __path__: /var/log/pods/observability_observability-debug-agent-*/observability-debug-agent/*.log
         pipeline_stages:
           - cri: {}
       - job_name: grafana

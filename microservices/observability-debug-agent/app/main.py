@@ -14,7 +14,7 @@ from app.middleware.request_logging import RequestLoggingMiddleware
 from app.mcp.observability_client import ObservabilityAgentClient
 
 
-logger = get_logger("talk-to-observability-agent")
+logger = get_logger("observability-debug-agent")
 
 
 @asynccontextmanager
@@ -25,7 +25,7 @@ async def lifespan(_: FastAPI):
     logger.info(
         "startup_validation_complete",
         extra={
-            "service": "talk-to-observability-agent",
+            "service": "observability-debug-agent",
             "observabilityAgentBaseUrl": settings.observability_agent_base_url,
         },
     )
@@ -33,7 +33,7 @@ async def lifespan(_: FastAPI):
     await client.aclose()
 
 
-app = FastAPI(title="Talk To Observability Agent", version="0.0.1", lifespan=lifespan)
+app = FastAPI(title="Observability Debug Agent", version="0.0.1", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

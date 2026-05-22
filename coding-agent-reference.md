@@ -13,7 +13,7 @@ Use this file as the **single technical reference** when changing code in this r
 | Layer | Components |
 |-------|------------|
 | **Business microservices (3)** | `ecommerce`, `product`, `images` — namespace `ecommerce` |
-| **Observability services (2)** | `observability-server` (Java REST + MCP), `talk-to-observability-agent` (Python LangGraph + chat UI) — namespace `observability` |
+| **Observability services (2)** | `observability-server` (Java REST + MCP), `observability-debug-agent` (Python LangGraph + chat UI) — namespace `observability` |
 | **Observability stack** | Prometheus, Loki, Promtail, Grafana — namespace `observability` |
 | **Orchestration** | `start.bat` / `stop.bat` / `restart--redeploy-service.bat` (Windows); Kubernetes only (no docker-compose for apps) |
 
@@ -54,7 +54,7 @@ Use this file as the **single technical reference** when changing code in this r
 | Base path | `/api/observability` |
 | Port | 8091 (cluster); local Swagger often needs port-forward |
 
-**REST endpoints (talk-to-observability-agent calls these via HTTP, not MCP):**
+**REST endpoints (observability-debug-agent calls these via HTTP, not MCP):**
 
 | Method | Path | Query params | Returns |
 |--------|------|--------------|---------|
@@ -78,15 +78,15 @@ Use this file as the **single technical reference** when changing code in this r
 
 **Service name → Prometheus `job`:** `ecommerce-service` → `ecommerce` (strip `-service` suffix in `PrometheusClient.toJobName()`).
 
-**MCP tools** (`ObservabilityTools`, Spring AI): same capabilities as REST except **no `get_heap_max_metrics` tool** — only REST has heap-max. MCP is optional for external clients; **talk-to uses REST only**.
+**MCP tools** (`ObservabilityTools`, Spring AI): same capabilities as REST except **no `get_heap_max_metrics` tool** — only REST has heap-max. MCP is optional for external clients; **observability-debug-agent uses REST only**.
 
-### 2.3 Talk-to-observability-agent (Python + UI)
+### 2.3 observability-debug-agent (Python + UI)
 
 | Item | Value |
 |------|--------|
-| Source | `microservices/talk-to-observability-agent/` |
-| UI | `microservices/talk-to-observability-agent/ui/` (React + Vite) |
-| K8s | `k8s/talk-to-observability-agent/` |
+| Source | `microservices/observability-debug-agent/` |
+| UI | `microservices/observability-debug-agent/ui/` (React + Vite) |
+| K8s | `k8s/observability-debug-agent/` |
 | Port | 8092 (NodePort / ingress to localhost) |
 
 **HTTP API:**
@@ -105,7 +105,7 @@ Use this file as the **single technical reference** when changing code in this r
 4. Deterministic correlation (`app/correlation/engine.py`)
 5. OpenAI summary (`app/services/reasoning_service.py`) — prompt mode: `default` | `error_logs` | `heap_percent`
 
-**Workflow diagram:** `microservices/talk-to-observability-agent/app/graph/workflow-diagram.md`
+**Workflow diagram:** `microservices/observability-debug-agent/app/graph/workflow-diagram.md`
 
 ---
 
@@ -145,7 +145,7 @@ All three modes use **`POST /api/v1/investigate`** (or chat UI). Routing is **ru
 | Grafana | http://localhost:3000 |
 | Prometheus UI | http://localhost:9090 |
 | Chat UI | http://localhost:8092 |
-| Talk-to Swagger | http://localhost:8092/docs |
+| observability-debug-agent Swagger | http://localhost:8092/docs |
 | observability-server Swagger | http://localhost:8091/swagger-ui.html *(requires port-forward to pod)* |
 
 ---
@@ -159,7 +159,7 @@ Use **Kubernetes DNS hostnames only** inside the cluster:
 | ecommerce | product | `http://product-service:8090` |
 | ecommerce | images | `http://images-service:8090` |
 | ecommerce | coupon (not deployed) | `http://coupon-service:8090` |
-| talk-to | observability-server | `http://observability-server.observability.svc.cluster.local:8091` |
+| observability-debug-agent | observability-server | `http://observability-server.observability.svc.cluster.local:8091` |
 | observability-server | Loki / Prometheus | from `k8s/observability-server/configmap.yaml` |
 
 **Do not reintroduce:** `HOST_IP`, Consul, nginx service discovery, or docker-compose for app wiring.
@@ -189,7 +189,7 @@ restart--redeploy-service.bat --help
 - `product` (alias `product-service`)
 - `images` (alias `images-service`)
 - `observability-server`
-- `talk-to-observability-agent` (includes `npm run build` for UI in Dockerfile)
+- `observability-debug-agent` (includes `npm run build` for UI in Dockerfile)
 
 **Manifest-only rollouts (no app jar build):**
 - `grafana`, `prometheus`, `loki`, `promtail`, `ingress`
@@ -200,7 +200,7 @@ restart--redeploy-service.bat --help
 
 **Typical redeploy after Java + Python changes:**
 ```bat
-restart--redeploy-service.bat ecommerce observability-server talk-to-observability-agent
+restart--redeploy-service.bat ecommerce observability-server observability-debug-agent
 ```
 
 ---
@@ -215,7 +215,7 @@ restart--redeploy-service.bat ecommerce observability-server talk-to-observabili
 | `k8s/observability/namespace.yaml` | `observability` namespace |
 | `k8s/observability/prometheus/`, `loki/`, `promtail/`, `grafana/` | Stack manifests |
 | `k8s/observability-server/` | observability-server |
-| `k8s/talk-to-observability-agent/` | Talk-to + `secret-example.yaml` (OpenAI key template) |
+| `k8s/observability-debug-agent/` | manifests + `secret-example.yaml` (OpenAI key) |
 
 Each app service manifest set: `configmap.yaml`, `deployment.yaml`, `service.yaml`.
 
@@ -227,16 +227,14 @@ Each app service manifest set: `configmap.yaml`, `deployment.yaml`, `service.yam
 
 Env vars use relaxed binding (e.g. `SERVICES_COUPON_BASE_URL` → `services.coupon.base-url`).
 
-Talk-to config: `k8s/talk-to-observability-agent/configmap.yaml` — keys must match `app/config/settings.py`.
+`observability-debug-agent` ConfigMap: `k8s/observability-debug-agent/configmap.yaml` — keys must match `app/config/settings.py`.
 
 **One-time secret (survives `start.bat`):**
-```powershell
-kubectl create secret generic talk-to-observability-agent-secret `
-  --from-literal=OPENAI_API_KEY=your-key-here `
-  -n observability
+```bat
+kubectl create secret generic observability-debug-agent-secret --from-literal=OPENAI_API_KEY=your-key-here -n observability
 ```
 
-**Talk-to environment variables:**
+**`observability-debug-agent` environment variables:**
 
 | Variable | Purpose | Default in code |
 |----------|---------|-----------------|
@@ -312,14 +310,14 @@ Product/images add: `spring-boot-starter-data-jpa`, H2.
 
 ## 12. Feature development rules
 
-1. **Do not break the three investigation modes** (§3). Run demos in `demo-usecases.md` after talk-to/workflow changes.
+1. **Do not break the three investigation modes** (§3). Run demos in `demo-usecases.md` after observability-debug-agent/workflow changes.
 2. Keep REST API paths stable unless the task explicitly changes contracts.
 3. Keep context paths: `/ecommerce-service`, `/product-service`, `/image-service`.
 4. Use Kubernetes DNS for inter-service URLs.
 5. When changing Java config, update **both** `application.properties` and the matching `k8s/*/configmap.yaml`.
 6. For new Prometheus gauges used in investigations, use **`sum(...)` across JVM pools** where applicable (heap used/max).
 7. Prefer **minimal diffs** — no new microservices unless requested; `coupon-service` stays undeployed.
-8. **talk-to stays thin:** fetch telemetry → deterministic correlation → OpenAI last.
+8. **`observability-debug-agent` stays thin:** fetch telemetry → deterministic correlation → OpenAI last.
 9. Local canonical deploy path is `start.bat` / `restart--redeploy-service.bat`, not ad-hoc `spring-boot:run` alone.
 10. Do not add a custom actuator endpoint with id `prometheus` (use Boot’s built-in export).
 
@@ -330,12 +328,12 @@ Product/images add: `spring-boot-starter-data-jpa`, H2.
 | Task | Paths |
 |------|--------|
 | Ecommerce API / coupon | `microservices/ecommerce/.../controller/EcommerceController.java`, `client/CouponClient.java`, `config/ExternalConfig.java`, `k8s/ecommerce/configmap.yaml` |
-| Investigation routing | `microservices/talk-to-observability-agent/app/graph/classification.py`, `workflow.py` |
+| Investigation routing | `microservices/observability-debug-agent/app/graph/classification.py`, `workflow.py` |
 | Correlation / evidence | `app/correlation/engine.py`, `app/util/formatting.py` |
 | LLM prompts | `app/prompts/reasoning.py`, `app/prompts/error_logs.py` |
 | Observability REST / PromQL | `microservices/observability-server/.../ObservabilityService.java`, `PrometheusClient.java`, `ObservabilityController.java` |
-| Talk-to HTTP client | `app/mcp/observability_client.py` |
-| Chat UI | `microservices/talk-to-observability-agent/ui/src/` |
+| observability-debug-agent HTTP client | `microservices/observability-debug-agent/app/mcp/observability_client.py` |
+| Chat UI | `microservices/observability-debug-agent/ui/src/` |
 | Prometheus scrape | `k8s/observability/prometheus/configmap.yaml` |
 | Grafana panels | `k8s/observability/grafana/dashboard-configmap.yaml` |
 | Traffic demo | `scripts/simulate_traffic_spike.py`, `scripts/TRAFFIC_SPIKE.md` |
@@ -351,7 +349,7 @@ Product/images add: `spring-boot-starter-data-jpa`, H2.
 | `DEV-Readme.md` | APIs, port-forwards, Loki/PromQL examples |
 | `chatbot-ui-readme.md` | Chat UI usage and local UI dev |
 | `architecture-diagram.md` | System Mermaid diagram |
-| `microservices/talk-to-observability-agent/app/graph/workflow-diagram.md` | LangGraph routing |
+| `microservices/observability-debug-agent/app/graph/workflow-diagram.md` | LangGraph routing |
 | `scripts/TRAFFIC_SPIKE.md` | Traffic spike script |
 | `coding-agent-reference.md` | This file |
 
@@ -367,7 +365,7 @@ Product/images add: `spring-boot-starter-data-jpa`, H2.
 | Slow investigation | Traffic script → chat with slowness + correlation id → heap + RPS in evidence |
 | Error investigation | apply-coupon → chat with error/stack wording → logs only, Explore only |
 | Heap % | Chat: `What is the heap usage of ecommerce-service?` → percent + MB, no logs |
-| Talk-to health | `http://localhost:8092/health` |
+| observability-debug-agent health | `http://localhost:8092/health` |
 
 ---
 
@@ -380,7 +378,7 @@ Product/images add: `spring-boot-starter-data-jpa`, H2.
 - Boot 3 H2 init via SQL scripts (not Hibernate `ddl-auto=create`)
 - `sum(jvm_memory_*_bytes)` and `sum(rate(http_server_requests_seconds_count[1m]))` in observability-server
 - Conditional LangGraph skips unused fetches
-- Chat UI served from talk-to image at `:8092`
+- Chat UI served from observability-debug-agent image at `:8092`
 
 ### Known bad (do not repeat)
 
@@ -400,10 +398,11 @@ Product/images add: `spring-boot-starter-data-jpa`, H2.
 | 2026-05-20 | Three investigation modes; conditional LangGraph; `heap-max` REST endpoint |
 | 2026-05-20 | Ecommerce `POST /apply-coupon` + `CouponClient` → undeployed `coupon-service` |
 | 2026-05-20 | PromQL fixes: `sum()` for heap and request rate |
-| 2026-05-20 | Talk-to chat UI in Docker; Grafana link helpers in UI |
+| 2026-05-20 | Observability debug agent chat UI in Docker; Grafana link helpers in UI |
 | 2026-05-20 | `restart--redeploy-service.bat` for selective redeploys |
-| 2026-05-20 | Removed dead code: unused `list_observable_services` in talk-to workflow, `CorrelationFinding.tags`, duplicate coupon doc (content in `demo-usecases.md`) |
+| 2026-05-20 | Removed dead code: unused `list_observable_services` in debug agent workflow, `CorrelationFinding.tags`, duplicate coupon doc (content in `demo-usecases.md`) |
+| 2026-05-22 | Renamed `talk-to-observability-agent` → `observability-debug-agent` (paths, K8s, Docker, secret name) |
 
 ---
 
-**Last updated:** 2026-05-20
+**Last updated:** 2026-05-22

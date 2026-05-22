@@ -13,9 +13,9 @@ kubectl delete -f "%ROOT_DIR%\k8s\ingress" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\ecommerce" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\images" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\product" --ignore-not-found
-kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\configmap.yaml" --ignore-not-found
-kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\deployment.yaml" --ignore-not-found
-kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\service.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\observability-debug-agent\configmap.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\observability-debug-agent\deployment.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\observability-debug-agent\service.yaml" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability-server" --ignore-not-found
 kubectl delete namespace observability-agent --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\grafana" --ignore-not-found
@@ -32,9 +32,9 @@ if errorlevel 1 goto :fail
 docker build --no-cache -t observability-server:!IMAGE_TAG! .
 if errorlevel 1 goto :fail
 
-echo [5/12] Building talk-to-observability-agent (API + chat UI)...
-cd /d "%ROOT_DIR%\microservices\talk-to-observability-agent" || goto :fail
-docker build --no-cache -t talk-to-observability-agent:!IMAGE_TAG! .
+echo [5/12] Building observability-debug-agent (API + chat UI)...
+cd /d "%ROOT_DIR%\microservices\observability-debug-agent" || goto :fail
+docker build --no-cache -t observability-debug-agent:!IMAGE_TAG! .
 if errorlevel 1 goto :fail
 
 echo [6/12] Building product-service...
@@ -94,13 +94,16 @@ kubectl apply -f "%ROOT_DIR%\k8s\observability-server"
 if errorlevel 1 goto :fail
 kubectl set image deployment/observability-server observability-server=observability-server:!IMAGE_TAG! -n observability
 if errorlevel 1 goto :fail
-kubectl apply -f "%ROOT_DIR%\k8s\talk-to-observability-agent\configmap.yaml"
+kubectl delete deployment talk-to-observability-agent -n observability --ignore-not-found
+kubectl delete service talk-to-observability-agent -n observability --ignore-not-found
+kubectl delete configmap talk-to-observability-agent-config -n observability --ignore-not-found
+kubectl apply -f "%ROOT_DIR%\k8s\observability-debug-agent\configmap.yaml"
 if errorlevel 1 goto :fail
-kubectl apply -f "%ROOT_DIR%\k8s\talk-to-observability-agent\deployment.yaml"
+kubectl apply -f "%ROOT_DIR%\k8s\observability-debug-agent\deployment.yaml"
 if errorlevel 1 goto :fail
-kubectl apply -f "%ROOT_DIR%\k8s\talk-to-observability-agent\service.yaml"
+kubectl apply -f "%ROOT_DIR%\k8s\observability-debug-agent\service.yaml"
 if errorlevel 1 goto :fail
-kubectl set image deployment/talk-to-observability-agent talk-to-observability-agent=talk-to-observability-agent:!IMAGE_TAG! -n observability
+kubectl set image deployment/observability-debug-agent observability-debug-agent=observability-debug-agent:!IMAGE_TAG! -n observability
 if errorlevel 1 goto :fail
 
 echo [12/12] Waiting for application deployments...
@@ -118,7 +121,7 @@ kubectl rollout status deployment/grafana -n observability
 if errorlevel 1 goto :fail
 kubectl rollout status deployment/observability-server -n observability
 if errorlevel 1 goto :fail
-kubectl rollout status deployment/talk-to-observability-agent -n observability
+kubectl rollout status deployment/observability-debug-agent -n observability
 if errorlevel 1 goto :fail
 
 echo.
@@ -143,7 +146,7 @@ echo   kubectl logs -n ecommerce deploy/product
 echo   kubectl logs -n ecommerce deploy/images
 echo   kubectl logs -n ecommerce deploy/ecommerce
 echo   kubectl logs -n observability deploy/observability-server
-echo   kubectl logs -n observability deploy/talk-to-observability-agent
+echo   kubectl logs -n observability deploy/observability-debug-agent
 echo   curl http://localhost:3000
 echo   curl http://localhost:8090/ecommerce-service/ecommerceProducts
 echo   http://localhost:9090

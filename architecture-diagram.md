@@ -29,8 +29,8 @@ flowchart TB
             GRAF["Grafana :3000"]
             PT["Promtail DaemonSet"]
             OAG["observability-server<br/>Spring Boot :8091"]
-            TALK["talk-to-observability-agent<br/>FastAPI :8092"]
-            UI["Chat UI React<br/>bundled in TALK static/"]
+            ODA["observability-debug-agent<br/>FastAPI :8092"]
+            UI["Chat UI React<br/>bundled in ODA static/"]
         end
     end
 
@@ -55,17 +55,17 @@ flowchart TB
     PROM --> PR
     PROM --> IM
 
-    EC & PR & IM & OAG & TALK -->|"stdout JSON logs"| PT
+    EC & PR & IM & OAG & ODA -->|"stdout JSON logs"| PT
     PT -->|"push LogQL labels"| LOKI
 
     GRAF --> PROM
     GRAF --> LOKI
 
-    UI --> TALK
-    TALK -->|"LangGraph POST /api/v1/investigate"| TALK
-    TALK -->|"REST /api/observability/*"| OAG
-    TALK -->|"Grafana API UID lookup"| GRAF
-    TALK --> OPENAI
+    UI --> ODA
+    ODA -->|"LangGraph POST /api/v1/investigate"| ODA
+    ODA -->|"REST /api/observability/*"| OAG
+    ODA -->|"Grafana API UID lookup"| GRAF
+    ODA --> OPENAI
     OAG --> LOKI
     OAG --> PROM
 
@@ -76,7 +76,7 @@ flowchart TB
     classDef ext fill:#f5f5f5,stroke:#616161
 
     class EC,PR,IM,OAG spring
-    class TALK,UI,SCRIPT python
+    class ODA,UI,SCRIPT python
     class PROM,LOKI,GRAF,PT obs
     class H2P,H2I store
     class USER,DEV,OPENAI ext
@@ -101,10 +101,10 @@ flowchart LR
 
     subgraph NS2["observability"]
         direction TB
-        D2["Deployments:<br/>prometheus, loki, grafana<br/>observability-server, talk-to-observability-agent"]
+        D2["Deployments:<br/>prometheus, loki, grafana<br/>observability-server, observability-debug-agent"]
         DS2["DaemonSet: promtail"]
-        S2["Services:<br/>prometheus, grafana LoadBalancer<br/>loki, observability-server ClusterIP<br/>talk-to-observability-agent LoadBalancer :8092"]
-        CM2["ConfigMaps + Secret<br/>OPENAI_API_KEY"]
+        S2["Services:<br/>prometheus, grafana LoadBalancer<br/>loki, observability-server ClusterIP<br/>observability-debug-agent LoadBalancer :8092"]
+        CM2["ConfigMaps + observability-debug-agent-secret"]
         D2 --> S2
         DS2 --> LOKI2["loki :3100"]
         CM2 --> D2
@@ -146,7 +146,7 @@ flowchart LR
 
     subgraph Agents["observability namespace"]
         A4["observability-server"]
-        A5["talk-to-observability-agent"]
+        A5["observability-debug-agent"]
     end
 
     subgraph Telemetry["Telemetry stack"]
@@ -172,7 +172,7 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     participant U as Browser :8092
-    participant T as talk-to-observability-agent
+    participant ODA as observability-debug-agent
     participant LG as LangGraph workflow
     participant O as observability-server
     participant L as Loki
@@ -180,19 +180,19 @@ sequenceDiagram
     participant AI as OpenAI
     participant G as Grafana
 
-    U->>T: Chat message → POST /api/v1/investigate
-    T->>LG: ainvoke(state)
+    U->>ODA: Chat message → POST /api/v1/investigate
+    ODA->>LG: ainvoke(state)
     LG->>O: list services, logs, metrics
     O->>L: LogQL query_range
     O->>P: PromQL query
     LG->>LG: correlation_node (deterministic)
     LG->>AI: reasoning_node summary
     LG->>G: resolve datasource/dashboard UIDs
-    LG-->>T: summary, evidence, grafana URLs
-    T-->>U: InvestigationResponse + UI render
+    LG-->>ODA: summary, evidence, grafana URLs
+    ODA-->>U: InvestigationResponse + UI render
 ```
 
-LangGraph node detail: [`workflow-diagram.md`](microservices/talk-to-observability-agent/app/graph/workflow-diagram.md)
+LangGraph node detail: [`workflow-diagram.md`](microservices/observability-debug-agent/app/graph/workflow-diagram.md)
 
 ## Service catalog
 
@@ -207,7 +207,7 @@ LangGraph node detail: [`workflow-diagram.md`](microservices/talk-to-observabili
 | Promtail | Promtail | observability | DaemonSet | — | Ships pod logs → Loki |
 | Grafana | Grafana | observability | `grafana` | LoadBalancer `:3000` | Dashboards + Explore |
 | observability-server | Java, Spring Boot, MCP | observability | `observability-server` | ClusterIP `:8091` | REST + MCP → Loki/Prometheus |
-| talk-to-observability-agent | Python, FastAPI, LangGraph | observability | `talk-to-observability-agent` | LoadBalancer `:8092` | NL investigation + chat UI |
+| observability-debug-agent | Python, FastAPI, LangGraph | observability | `observability-debug-agent` | LoadBalancer `:8092` | NL investigation + chat UI |
 | traffic script | Python aiohttp | host | — | `localhost:8090` | Demo load + correlation IDs |
 
 ## Correlation ID
@@ -223,8 +223,8 @@ LangGraph node detail: [`workflow-diagram.md`](microservices/talk-to-observabili
 | http://localhost:8090/ecommerce-service/ecommerceProducts | ecommerce API |
 | http://localhost:3000 | Grafana |
 | http://localhost:9090 | Prometheus |
-| http://localhost:8092 | Observability chat UI |
-| http://localhost:8092/docs | FastAPI Swagger |
+| http://localhost:8092 | observability-debug-agent chat UI |
+| http://localhost:8092/docs | observability-debug-agent Swagger |
 | http://localhost:8091/swagger-ui.html | observability-server *(port-forward)* |
 
 ## Repository map (runtime)
@@ -235,7 +235,7 @@ microservices/
   product/            → Deployment in ecommerce
   images/             → Deployment in ecommerce
   observability-server/→ Deployment in observability
-  talk-to-observability-agent/
+  observability-debug-agent/
     app/graph/        → LangGraph workflow
     ui/               → React chat (built into image)
 k8s/
@@ -243,6 +243,6 @@ k8s/
   ingress/
   observability/      → prometheus, loki, promtail, grafana
   observability-server/
-  talk-to-observability-agent/
+  observability-debug-agent/
 start.bat / stop.bat  → local orchestration
 ```

@@ -10,7 +10,7 @@ from app.logging.json_logger import get_logger
 from app.middleware.correlation import CORRELATION_HEADER
 
 
-logger = get_logger("talk-to-observability-agent.http")
+logger = get_logger("observability-debug-agent.http")
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -22,7 +22,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         logger.info(
             "http_request_complete",
             extra={
-                "service": "talk-to-observability-agent",
+                "service": "observability-debug-agent",
                 "correlationId": correlation_id,
                 "method": request.method,
                 "path": request.url.path,

@@ -8,9 +8,9 @@ echo [1/4] Switching to repo root...
 cd /d "%ROOT_DIR%" || goto :fail
 
 echo [2/4] Removing observability resources...
-kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\configmap.yaml" --ignore-not-found
-kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\deployment.yaml" --ignore-not-found
-kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\service.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\observability-debug-agent\configmap.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\observability-debug-agent\deployment.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\observability-debug-agent\service.yaml" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability-server" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\grafana" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\promtail" --ignore-not-found

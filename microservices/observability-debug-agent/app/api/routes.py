@@ -9,7 +9,7 @@ from app.models.schemas import InvestigationRequest, InvestigationResponse
 
 
 router = APIRouter()
-logger = get_logger("talk-to-observability-agent.api")
+logger = get_logger("observability-debug-agent.api")
 workflow = InvestigationWorkflow()
 
 
@@ -30,7 +30,7 @@ async def investigate(request: InvestigationRequest, http_request: Request) -> I
         logger.warning(
             "investigation_failed",
             extra={
-                "service": "talk-to-observability-agent",
+                "service": "observability-debug-agent",
                 "correlationId": correlation_id,
                 "query": request.query,
                 "error": str(exc),
@@ -41,7 +41,7 @@ async def investigate(request: InvestigationRequest, http_request: Request) -> I
         logger.error(
             "investigation_failed",
             extra={
-                "service": "talk-to-observability-agent",
+                "service": "observability-debug-agent",
                 "correlationId": correlation_id,
                 "query": request.query,
                 "error": str(exc),
@@ -56,7 +56,7 @@ async def investigate(request: InvestigationRequest, http_request: Request) -> I
         logger.error(
             "investigation_failed",
             extra={
-                "service": "talk-to-observability-agent",
+                "service": "observability-debug-agent",
                 "correlationId": correlation_id,
                 "query": request.query,
                 "error": str(exc),
@@ -72,7 +72,7 @@ async def investigate(request: InvestigationRequest, http_request: Request) -> I
     logger.info(
         "investigation_complete",
         extra={
-            "service": "talk-to-observability-agent",
+            "service": "observability-debug-agent",
             "correlationId": correlation_id,
             "investigationId": correlation_id,
             "query": request.query,

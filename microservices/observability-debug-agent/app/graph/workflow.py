@@ -26,7 +26,7 @@ from app.util.formatting import format_bytes, format_percent
 from app.util.grafana_links import build_dashboard_url, build_loki_explore_url
 
 
-logger = get_logger("talk-to-observability-agent.graph")
+logger = get_logger("observability-debug-agent.graph")
 
 
 SERVICE_ALIASES = {

@@ -1,6 +1,6 @@
 # Observability Chatbot UI
 
-Browser chat for **talk-to-observability-agent** (React + Vite + TypeScript). The UI is built into the service Docker image and served on the same port as the API.
+Browser chat for **observability-debug-agent** (React + Vite + TypeScript). The UI is built into the service Docker image and served on the same port as the API.
 
 ## Quick start (recommended)
 
@@ -19,12 +19,12 @@ When startup finishes, open:
 | http://localhost:8092/docs | API Swagger |
 | http://localhost:8092/health | Health check |
 
-No separate `npm` step is required for this path — `start.bat` builds the UI inside the `talk-to-observability-agent` Docker image.
+No separate `npm` step is required for this path — `start.bat` builds the UI inside the `observability-debug-agent` Docker image.
 
 ## One-time secret
 
 ```powershell
-kubectl create secret generic talk-to-observability-agent-secret `
+kubectl create secret generic observability-debug-agent-secret `
   --from-literal=OPENAI_API_KEY=your-key-here `
   -n observability
 ```
@@ -52,12 +52,12 @@ Use the printed `correlationId` in the chat or in Grafana Explore (Loki).
 
 ## Local UI development (optional)
 
-Use this when changing files under `microservices/talk-to-observability-agent/ui/` without rebuilding the full cluster.
+Use this when changing files under `microservices/observability-debug-agent/ui/` without rebuilding the full cluster.
 
 **Terminal 1 — API** (needs observability stack + port-forward or cluster API):
 
 ```powershell
-cd microservices\talk-to-observability-agent
+cd microservices\observability-debug-agent
 pip install -r requirements.txt
 $env:OBSERVABILITY_AGENT_BASE_URL = "http://localhost:8091"
 $env:OPENAI_API_KEY = "your-key"
@@ -73,7 +73,7 @@ kubectl port-forward -n observability svc/observability-server 8091:8091
 **Terminal 2 — Vite dev server** (proxies `/api` to 8092):
 
 ```powershell
-cd microservices\talk-to-observability-agent\ui
+cd microservices\observability-debug-agent\ui
 npm install
 npm run dev
 ```
@@ -85,25 +85,25 @@ Requires [Node.js](https://nodejs.org/) (LTS) on your PATH.
 ## Rebuild only the chat service
 
 ```powershell
-cd microservices\talk-to-observability-agent
+cd microservices\observability-debug-agent
 $tag = Get-Date -Format "yyyyMMddHHmmss"
-docker build --no-cache -t "talk-to-observability-agent:$tag" .
-kubectl set image deployment/talk-to-observability-agent talk-to-observability-agent="talk-to-observability-agent:$tag" -n observability
-kubectl rollout status deployment/talk-to-observability-agent -n observability --timeout=120s
+docker build --no-cache -t "observability-debug-agent:$tag" .
+kubectl set image deployment/observability-debug-agent observability-debug-agent="observability-debug-agent:$tag" -n observability
+kubectl rollout status deployment/observability-debug-agent -n observability --timeout=120s
 ```
 
 ## Troubleshooting
 
 | Symptom | What to check |
 |---------|----------------|
-| Blank page at :8092 | Pod logs: `kubectl logs -n observability deploy/talk-to-observability-agent` — image must include `static/` from UI build |
-| CrashLoop `observability-server is unavailable during startup validation` | Startup race: rebuild talk-to image (retries up to ~60s) or ensure observability-server pod is Running first |
+| Blank page at :8092 | Pod logs: `kubectl logs -n observability deploy/observability-debug-agent` — image must include `static/` from UI build |
+| CrashLoop `observability-server is unavailable during startup validation` | Startup race: rebuild observability-debug-agent image (retries up to ~60s) or ensure observability-server pod is Running first |
 | 503 / error in chat | `OPENAI_API_KEY` secret in `observability`; observability-server and Loki/Prometheus healthy |
 | Grafana links 404 | Grafana at http://localhost:3000; configmap `GRAFANA_BASE_URL` is browser URL, `GRAFANA_API_BASE_URL` is in-cluster |
 | `npm` not found (local dev) | Install Node.js LTS; restart terminal |
 
 ## Source layout
 
-- UI: `microservices/talk-to-observability-agent/ui/`
-- API + static serving: `microservices/talk-to-observability-agent/app/main.py`
-- Multi-stage Docker build: `microservices/talk-to-observability-agent/Dockerfile`
+- UI: `microservices/observability-debug-agent/ui/`
+- API + static serving: `microservices/observability-debug-agent/app/main.py`
+- Multi-stage Docker build: `microservices/observability-debug-agent/Dockerfile`

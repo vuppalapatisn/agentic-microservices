@@ -29,11 +29,13 @@ export default function AssistantMessage({ response }: Props) {
               response.grafanaDashboardUrl,
             )}
       </p>
-      {response.evidence.length > 0 && (
+      {response.evidence.filter((item) => item.trim()).length > 0 && (
         <ul className="evidence">
-          {response.evidence.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
+          {response.evidence
+            .filter((item) => item.trim())
+            .map((item) => (
+              <li key={item}>{item}</li>
+            ))}
         </ul>
       )}
       {(response.grafanaExploreUrl || response.grafanaDashboardUrl) && (

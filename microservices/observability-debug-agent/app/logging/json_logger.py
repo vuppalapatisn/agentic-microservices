@@ -8,7 +8,7 @@ class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "service": getattr(record, "service", "talk-to-observability-agent"),
+            "service": getattr(record, "service", "observability-debug-agent"),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

@@ -11,7 +11,7 @@ from app.middleware.correlation import CORRELATION_HEADER, get_correlation_id
 from app.models.schemas import LogFinding, MetricFinding
 
 
-logger = get_logger("talk-to-observability-server.mcp")
+logger = get_logger("observability-debug-agent.mcp")
 
 
 class ObservabilityAgentClient:
@@ -38,7 +38,7 @@ class ObservabilityAgentClient:
                 logger.info(
                     "observability_agent_validation_complete",
                     extra={
-                        "service": "talk-to-observability-server",
+                        "service": "observability-debug-agent",
                         "correlationId": get_correlation_id(),
                         "durationMs": duration_ms,
                         "attempt": attempt,
@@ -57,7 +57,7 @@ class ObservabilityAgentClient:
                 logger.warning(
                     "observability_agent_validation_retry",
                     extra={
-                        "service": "talk-to-observability-server",
+                        "service": "observability-debug-agent",
                         "correlationId": get_correlation_id(),
                         "attempt": attempt,
                         "maxAttempts": max_attempts,
@@ -153,7 +153,7 @@ class ObservabilityAgentClient:
             logger.info(
                 "telemetry_fetch_complete",
                 extra={
-                    "service": "talk-to-observability-server",
+                    "service": "observability-debug-agent",
                     "correlationId": correlation_id,
                     "durationMs": duration_ms,
                     "query": path,

@@ -2,25 +2,21 @@
 
 Three investigation modes through the **same** chat UI and `POST /api/v1/investigate`. Query wording drives routing (logs only, metrics only, or both).
 
-| # | Use case | Trigger | Example chat query | Routing |
-|---|----------|---------|-------------------|---------|
-| 1 | Slow requests | Traffic spike script | `Find reason for slowness for correlation id <uuid>` | Logs + metrics |
-| 2 | Error details in logs | `POST /apply-coupon` | `Give me details of error for request <uuid>` | Logs only |
-| 3 | Heap usage % | None (live metrics) | `What is the heap usage of ecommerce-service?` | Metrics only (heap used + max) |
+
+| #   | Use case              | Trigger              | Example chat query                                   | Routing                        |
+| --- | --------------------- | -------------------- | ---------------------------------------------------- | ------------------------------ |
+| 1   | Slow requests         | Traffic spike script | `Find reason for slowness for correlation id <uuid>` | Logs + metrics                 |
+| 2   | Error details in logs | `POST /apply-coupon` | `Give me details of error for request <uuid>`        | Logs only                      |
+| 3   | Heap usage %          | None (live metrics)  | `What is the heap usage of ecommerce-service?`       | Metrics only (heap used + max) |
+
 
 ## Prerequisites
 
 1. Stack running: `start.bat`
 2. One-time OpenAI secret in namespace `observability` (see [README.md](README.md))
-3. Chat UI: http://localhost:8092 (or Swagger at http://localhost:8092/docs)
+3. Chat UI: [http://localhost:8092](http://localhost:8092) (or Swagger at [http://localhost:8092/docs](http://localhost:8092/docs))
 
 Optional: `pip install -r scripts/requirements.txt` for the traffic script.
-
-After code changes, rebuild Java services with Maven, then:
-
-```bat
-restart--redeploy-service.bat ecommerce observability-server talk-to-observability-agent
-```
 
 ---
 
@@ -44,15 +40,17 @@ Copy the `correlationId`. More detail: [scripts/TRAFFIC_SPIKE.md](scripts/TRAFFI
 
 ### Step 2 — Confirm signals (optional)
 
-| Signal | Where |
-|--------|--------|
-| Request-rate spike | Grafana **Request Rate** panel |
-| Heap rise | Grafana **Heap Space** panel |
-| Slow requests | Loki: `{namespace="ecommerce", app="ecommerce"} \|= "<uuid>"` |
+
+| Signal             | Where                                                        |
+| ------------------ | ------------------------------------------------------------ |
+| Request-rate spike | Grafana **Request Rate** panel                               |
+| Heap rise          | Grafana **Heap Space** panel                                 |
+| Slow requests      | Loki: `{namespace="ecommerce", app="ecommerce"} |= "<uuid>"` |
+
 
 ### Step 3 — Investigate in chat
 
-Open http://localhost:8092 and use one of:
+Open [http://localhost:8092](http://localhost:8092) and use one of:
 
 - `Why is the ecommerce service slow in the last 15 minutes?`
 - `Find reason for slowness for correlation id <uuid>`
@@ -72,7 +70,7 @@ Open http://localhost:8092 and use one of:
 
 ### Step 1 — Trigger the error
 
-**Windows CMD or PowerShell** — use **one line** (backtick `` ` `` line breaks are PowerShell-only; in CMD they run as separate broken commands):
+**Windows CMD or PowerShell** — use **one line** (backtick ``` line breaks are PowerShell-only; in CMD they run as separate broken commands):
 
 ```bat
 curl.exe -i -X POST http://localhost:8090/ecommerce-service/apply-coupon -H "Content-Type: text/plain" -d DISC20
@@ -93,7 +91,7 @@ $r.StatusCode
 ```
 
 - Expect **502 Bad Gateway** (or similar non-2xx), not **415** (415 means `Content-Type: text/plain` or body was not sent — usually a split/broken multi-line command).
-- Copy **`X-Correlation-Id`** from the response headers.
+- Copy `**X-Correlation-Id`** from the response headers.
 
 Log line shape (in Loki):
 
@@ -157,13 +155,15 @@ PromQL used internally: `sum(jvm_memory_used_bytes)` and `sum(jvm_memory_max_byt
 
 ## Quick reference — chat vs routing
 
-| If your query contains… | Logs fetched? | Metrics fetched? |
-|-------------------------|---------------|------------------|
-| `slow`, `slowness`, `latency`, `correlation id` (investigation) | Yes | Yes (full: heap, threads, RPS) |
-| `error`, `stack`, `details`, `coupon` (no slow/latency) | Yes | No |
-| `heap` + `usage` / `how much` / `%` (no slow/error words) | No | Yes (heap used + max only) |
 
-Workflow diagram: [microservices/talk-to-observability-agent/app/graph/workflow-diagram.md](microservices/talk-to-observability-agent/app/graph/workflow-diagram.md).
+| If your query contains…                                         | Logs fetched? | Metrics fetched?               |
+| --------------------------------------------------------------- | ------------- | ------------------------------ |
+| `slow`, `slowness`, `latency`, `correlation id` (investigation) | Yes           | Yes (full: heap, threads, RPS) |
+| `error`, `stack`, `details`, `coupon` (no slow/latency)         | Yes           | No                             |
+| `heap` + `usage` / `how much` / `%` (no slow/error words)       | No            | Yes (heap used + max only)     |
+
+
+Workflow diagram: [microservices/observability-debug-agent/app/graph/workflow-diagram.md](microservices/observability-debug-agent/app/graph/workflow-diagram.md).
 
 ## API alternative (Swagger)
 

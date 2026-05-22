@@ -1,4 +1,4 @@
-# Talk To Observability Agent
+# Observability Debug Agent
 
 FastAPI + LangGraph service that investigates observability questions using the existing `observability-server`.
 
@@ -18,7 +18,7 @@ A browser chatbot calls the investigate API and shows summary, evidence, and Gra
 Terminal 1 — API (port 8092):
 
 ```bash
-cd microservices/talk-to-observability-agent
+cd microservices/observability-debug-agent
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8092
 ```
@@ -26,7 +26,7 @@ uvicorn app.main:app --reload --port 8092
 Terminal 2 — UI (port 5173, proxies `/api` to 8092):
 
 ```bash
-cd microservices/talk-to-observability-agent/ui
+cd microservices/observability-debug-agent/ui
 npm install
 npm run dev
 ```
@@ -38,8 +38,8 @@ Open http://localhost:5173
 After `docker build`, open http://localhost:8092 for the chat UI and API on the same port.
 
 ```bash
-cd microservices/talk-to-observability-agent
-docker build -t talk-to-observability-agent .
+cd microservices/observability-debug-agent
+docker build -t observability-debug-agent .
 ```
 
 Rebuild and redeploy the Kubernetes deployment to use the new image.

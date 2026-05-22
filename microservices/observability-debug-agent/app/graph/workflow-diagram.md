@@ -1,4 +1,4 @@
-# Talk-to-Observability LangGraph Workflow
+# Observability Debug Agent — LangGraph Workflow
 
 Source: [`workflow.py`](workflow.py) — `InvestigationWorkflow._build_graph()`
 

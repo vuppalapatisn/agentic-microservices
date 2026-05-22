@@ -51,7 +51,7 @@ set "NAME=%~1"
 if /i "!NAME!"=="graphana" set "NAME=grafana"
 
 if /i "!NAME!"=="observability-server" goto :do_observability_server
-if /i "!NAME!"=="talk-to-observability-agent" goto :do_talk_to_observability_agent
+if /i "!NAME!"=="observability-debug-agent" goto :do_observability_debug_agent
 if /i "!NAME!"=="ecommerce" goto :do_ecommerce
 if /i "!NAME!"=="ecommerce-service" goto :do_ecommerce
 if /i "!NAME!"=="product" goto :do_product
@@ -87,22 +87,22 @@ if errorlevel 1 exit /b 1
 kubectl rollout status deployment/observability-server -n observability --timeout=180s
 exit /b %errorlevel%
 
-:do_talk_to_observability_agent
-echo [build] docker image talk-to-observability-agent:!IMAGE_TAG! ^(API + chat UI^)...
-cd /d "%ROOT_DIR%\microservices\talk-to-observability-agent" || exit /b 1
-docker build --no-cache -t talk-to-observability-agent:!IMAGE_TAG! .
+:do_observability_debug_agent
+echo [build] docker image observability-debug-agent:!IMAGE_TAG! ^(API + chat UI^)...
+cd /d "%ROOT_DIR%\microservices\observability-debug-agent" || exit /b 1
+docker build --no-cache -t observability-debug-agent:!IMAGE_TAG! .
 if errorlevel 1 exit /b 1
 cd /d "%ROOT_DIR%" || exit /b 1
 echo [deploy] kubectl apply + set image...
-kubectl apply -f "%ROOT_DIR%\k8s\talk-to-observability-agent\configmap.yaml"
+kubectl apply -f "%ROOT_DIR%\k8s\observability-debug-agent\configmap.yaml"
 if errorlevel 1 exit /b 1
-kubectl apply -f "%ROOT_DIR%\k8s\talk-to-observability-agent\deployment.yaml"
+kubectl apply -f "%ROOT_DIR%\k8s\observability-debug-agent\deployment.yaml"
 if errorlevel 1 exit /b 1
-kubectl apply -f "%ROOT_DIR%\k8s\talk-to-observability-agent\service.yaml"
+kubectl apply -f "%ROOT_DIR%\k8s\observability-debug-agent\service.yaml"
 if errorlevel 1 exit /b 1
-kubectl set image deployment/talk-to-observability-agent talk-to-observability-agent=talk-to-observability-agent:!IMAGE_TAG! -n observability
+kubectl set image deployment/observability-debug-agent observability-debug-agent=observability-debug-agent:!IMAGE_TAG! -n observability
 if errorlevel 1 exit /b 1
-kubectl rollout status deployment/talk-to-observability-agent -n observability --timeout=180s
+kubectl rollout status deployment/observability-debug-agent -n observability --timeout=180s
 exit /b %errorlevel%
 
 :do_ecommerce
@@ -204,7 +204,7 @@ echo   restart--redeploy-service.bat --help
 echo.
 echo Custom-built services ^(mvn clean package + docker build + kubectl set image^):
 echo   observability-server
-echo   talk-to-observability-agent
+echo   observability-debug-agent
 echo   ecommerce          ^(alias: ecommerce-service^)
 echo   product            ^(alias: product-service^)
 echo   images             ^(alias: images-service^)
@@ -219,8 +219,8 @@ echo Other:
 echo   ingress
 echo.
 echo Examples:
-echo   restart--redeploy-service.bat talk-to-observability-agent
-echo   restart--redeploy-service.bat observability-server talk-to-observability-agent
+echo   restart--redeploy-service.bat observability-debug-agent
+echo   restart--redeploy-service.bat observability-server observability-debug-agent
 echo   restart--redeploy-service.bat grafana observability-server
 echo   restart--redeploy-service.bat ecommerce product images
 echo.

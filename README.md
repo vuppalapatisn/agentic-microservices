@@ -1,8 +1,8 @@
 # microservices-ecommerce-2
 
-Kubernetes-native ecommerce demo with Prometheus, Loki, Grafana, observability-server, talk-to-observability-agent, and a browser chat UI for investigations.
+Kubernetes-native ecommerce demo with Prometheus, Loki, Grafana, observability-server, observability-debug-agent, and a browser chat UI for investigations.
 
-<img width="1536" height="1024" alt="agentic-microservices-architecture" src="https://github.com/user-attachments/assets/03728911-082f-4cf3-a637-4ce7fbfbb202" />
+![Architecture Diagram](Architecture%20diagram.png)
 
 ## Prerequisites
 
@@ -16,7 +16,7 @@ Optional for UI development only: Node.js LTS (`npm` on PATH). Not required when
 cd C:\git\microservices-ecommerce-2
 start.bat    # build, deploy, wait for rollouts
 stop.bat     # tear down workloads
-restart--redeploy-service.bat talk-to-observability-agent   # rebuild one service
+restart--redeploy-service.bat observability-debug-agent   # rebuild one service
 restart--redeploy-service.bat --help                        # list all service names
 ```
 
@@ -27,8 +27,8 @@ restart--redeploy-service.bat --help                        # list all service n
 | Ecommerce API | http://localhost:8090/ecommerce-service/ecommerceProducts |
 | Grafana | http://localhost:3000 |
 | Prometheus | http://localhost:9090 |
-| Observability chatbot UI | http://localhost:8092 |
-| Talk-to-observability (Swagger) | http://localhost:8092/docs |
+| observability-debug-agent (chat UI) | http://localhost:8092 |
+| observability-debug-agent (Swagger) | http://localhost:8092/docs |
 | observability-server (Swagger) | http://localhost:8091/swagger-ui.html *(port-forward)* |
 
 Chat UI setup and troubleshooting: **[chatbot-ui-readme.md](chatbot-ui-readme.md)**
@@ -37,12 +37,10 @@ Architecture (Mermaid): **[architecture-diagram.md](architecture-diagram.md)**
 
 ## Before first investigate call
 
-Create OpenAI secret once in namespace `observability` (survives `start.bat`):
+Create OpenAI secret once in namespace `observability` (survives `start.bat`). **cmd.exe** — single line:
 
-```powershell
-kubectl create secret generic talk-to-observability-agent-secret `
-  --from-literal=OPENAI_API_KEY=your-key-here `
-  -n observability
+```bat
+kubectl create secret generic observability-debug-agent-secret --from-literal=OPENAI_API_KEY=your-key-here -n observability
 ```
 
 ## Demo use cases

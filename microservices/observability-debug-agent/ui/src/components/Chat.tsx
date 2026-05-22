@@ -24,9 +24,7 @@ export default function Chat() {
         summary:
           "Hi — I can investigate latency, errors, and resource usage using logs and metrics from your observability stack. Ask a question or pick a suggestion below.",
         probableRootCause: "—",
-        evidence: [
-          "",
-        ],
+        evidence: [],
       },
     },
   ]);

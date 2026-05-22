@@ -59,7 +59,7 @@ Press **Ctrl+C** for graceful shutdown.
    {namespace="ecommerce", app="ecommerce"} |= "<correlationId>"
    ```
 
-3. In **talk-to-observability-agent** Swagger (`http://localhost:8092/docs`):
+3. In **observability-debug-agent** Swagger (`http://localhost:8092/docs`):
 
    ```json
    { "query": "Investigate correlation id <correlationId> for ecommerce errors" }

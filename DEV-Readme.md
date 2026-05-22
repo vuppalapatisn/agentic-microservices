@@ -4,22 +4,22 @@ After `start.bat`. Assumes LoadBalancer → `localhost` (Docker Desktop K8s).
 
 ## Secret (one-time)
 
-```powershell
-kubectl create secret generic talk-to-observability-agent-secret `
-  --from-literal=OPENAI_API_KEY=your-key-here `
-  -n observability
+```bat
+kubectl create secret generic observability-debug-agent-secret --from-literal=OPENAI_API_KEY=your-key-here -n observability
 ```
 
 ## URLs
 
-| Service | URL | Notes |
-|---------|-----|-------|
-| Ecommerce | http://localhost:8090/ecommerce-service/ecommerceProducts | LoadBalancer |
-| Grafana | http://localhost:3000 | `admin` / `admin` on first login |
-| Prometheus | http://localhost:9090 | |
-| Observability chatbot UI | http://localhost:8092 | Bundled in talk-to-observability-agent image after `start.bat` |
-| Talk-to-observability | http://localhost:8092/docs | FastAPI Swagger |
-| observability-server | http://localhost:8091/swagger-ui.html | ClusterIP — port-forward below |
+
+| Service                             | URL                                                                                                                    | Notes                                                               |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Ecommerce                           | [http://localhost:8090/ecommerce-service/ecommerceProducts](http://localhost:8090/ecommerce-service/ecommerceProducts) | Main microservice that uses image service and product microservices |
+| Grafana                             | [http://localhost:3000](http://localhost:3000)                                                                         | `admin` / `admin` on first login                                    |
+| Prometheus                          | [http://localhost:9090](http://localhost:9090)                                                                         |                                                                     |
+| observability-debug-agent (chat UI) | [http://localhost:8092](http://localhost:8092)                                                                         | React UI baked into image (`start.bat`)                             |
+| observability-debug-agent (Swagger) | [http://localhost:8092/docs](http://localhost:8092/docs)                                                               | `POST /api/v1/investigate`                                          |
+| observability-server                | [http://localhost:8091/swagger-ui.html](http://localhost:8091/swagger-ui.html)                                         | ClusterIP — port-forward below                                      |
+
 
 Full chat UI guide: **[chatbot-ui-readme.md](chatbot-ui-readme.md)**
 
@@ -31,19 +31,18 @@ kubectl port-forward -n observability svc/observability-server 8091:8091
 
 **Product / images** (ClusterIP): `kubectl port-forward -n ecommerce svc/product-service 8090:8090` (same for `images-service`).
 
-## Observability chatbot UI
+## observability-debug-agent
 
-After `start.bat`, open **http://localhost:8092**. The React UI calls `POST /api/v1/investigate` and shows summary, evidence, root cause, and Grafana links.
-
-- Optional **correlation ID** field — use IDs from `scripts/simulate_traffic_spike.py`
-- Local UI dev (Vite on :5173): see [chatbot-ui-readme.md](chatbot-ui-readme.md)
+Chat UI at **[http://localhost:8092](http://localhost:8092)** → `POST /api/v1/investigate`. Optional correlation ID from `scripts/simulate_traffic_spike.py`. Local UI dev: [chatbot-ui-readme.md](chatbot-ui-readme.md).
 
 ## Swagger
 
-| Service | UI |
-|---------|-----|
-| observability-server | http://localhost:8091/swagger-ui.html |
-| talk-to-observability-agent | http://localhost:8092/docs |
+
+| Service                   | UI                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| observability-server      | [http://localhost:8091/swagger-ui.html](http://localhost:8091/swagger-ui.html) |
+| observability-debug-agent | [http://localhost:8092/docs](http://localhost:8092/docs)                       |
+
 
 App services (ecommerce, product, images) have no Swagger — use REST/actuator URLs in README.
 
@@ -59,15 +58,14 @@ curl -X POST http://localhost:8092/api/v1/investigate `
 
 UUID on every request; echoed in response header and JSON logs as `correlationId`.
 
-| Service | Mechanism |
-|---------|-----------|
-| ecommerce, product, images | `CorrelationIdFilter` |
-| Service | Propagation | Logged (JSON `correlationId`) |
-|---------|-------------|-------------------------------|
-| ecommerce | `X-Correlation-Id` → product/images via RestTemplate | `RequestLoggingFilter` |
-| product, images | inbound header | `RequestLoggingFilter` |
-| observability-server | `CorrelationIdFilter` + `RequestLoggingFilter` | yes |
-| talk-to-observability-agent | middleware → observability-server | yes |
+
+| Service                   | Propagation                                              | Logged (`correlationId`) |
+| ------------------------- | -------------------------------------------------------- | ------------------------ |
+| ecommerce                 | `CorrelationIdFilter`; forwards header to product/images | `RequestLoggingFilter`   |
+| product, images           | inbound `X-Correlation-Id`                               | `RequestLoggingFilter`   |
+| observability-server      | `CorrelationIdFilter`                                    | `RequestLoggingFilter`   |
+| observability-debug-agent | middleware → observability-server                        | yes                      |
+
 
 **Loki (all ecommerce apps):**
 
@@ -92,7 +90,7 @@ UUID on every request; echoed in response header and JSON logs as `correlationId
 {namespace="ecommerce"} |= "<correlation-id>"
 ```
 
-If empty: widen time range (e.g. **Last 6 hours**), generate traffic, then redeploy Promtail (`kubectl apply -f k8s/observability/promtail/configmap.yaml` + `kubectl rollout restart ds/promtail -n observability`). Log paths use `ecommerce_ecommerce-*` (dash after deployment name), not `ecommerce_ecommerce_*`.
+If empty: widen time range (e.g. **Last 6 hours**), generate traffic, then redeploy Promtail (`kubectl apply -f k8s/observability/promtail/configmap.yaml` + `kubectl rollout restart ds/promtail -n observability`). Log paths use `ecommerce_ecommerce-`* (dash after deployment name), not `ecommerce_ecommerce_*`.
 
 **Metrics** — Explore → Prometheus or dashboard **Ecommerce Observability**:
 
@@ -117,13 +115,16 @@ Details: [scripts/TRAFFIC_SPIKE.md](scripts/TRAFFIC_SPIKE.md)
 
 ## Namespaces
 
-| Namespace | Workloads |
-|-----------|-----------|
-| `ecommerce` | ecommerce, product, images, ingress |
-| `observability` | prometheus, loki, promtail, grafana, observability-server, talk-to-observability-agent |
+
+| Namespace       | Workloads                                                                            |
+| --------------- | ------------------------------------------------------------------------------------ |
+| `ecommerce`     | ecommerce, product, images, ingress                                                  |
+| `observability` | prometheus, loki, promtail, grafana, observability-server, observability-debug-agent |
+
 
 ```powershell
 kubectl get pods -n ecommerce
 kubectl get pods -n observability
-kubectl logs -n observability deploy/talk-to-observability-agent -f
+kubectl logs -n observability deploy/observability-debug-agent -f
 ```
+

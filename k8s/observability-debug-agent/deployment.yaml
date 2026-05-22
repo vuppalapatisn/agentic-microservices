@@ -1,27 +1,27 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: talk-to-observability-agent
+  name: observability-debug-agent
   namespace: observability
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: talk-to-observability-agent
+      app: observability-debug-agent
   template:
     metadata:
       labels:
-        app: talk-to-observability-agent
+        app: observability-debug-agent
     spec:
       containers:
-        - name: talk-to-observability-agent
-          image: talk-to-observability-agent:v1
+        - name: observability-debug-agent
+          image: observability-debug-agent:v1
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: talk-to-observability-agent-config
+                name: observability-debug-agent-config
             - secretRef:
-                name: talk-to-observability-agent-secret
+                name: observability-debug-agent-secret
                 optional: true
           ports:
             - containerPort: 8092
