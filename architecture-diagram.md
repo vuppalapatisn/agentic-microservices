@@ -28,7 +28,7 @@ flowchart TB
             LOKI["Loki :3100"]
             GRAF["Grafana :3000"]
             PT["Promtail DaemonSet"]
-            OAG["observability-agent<br/>Spring Boot :8091"]
+            OAG["observability-server<br/>Spring Boot :8091"]
             TALK["talk-to-observability-agent<br/>FastAPI :8092"]
             UI["Chat UI React<br/>bundled in TALK static/"]
         end
@@ -101,9 +101,9 @@ flowchart LR
 
     subgraph NS2["observability"]
         direction TB
-        D2["Deployments:<br/>prometheus, loki, grafana<br/>observability-agent, talk-to-observability-agent"]
+        D2["Deployments:<br/>prometheus, loki, grafana<br/>observability-server, talk-to-observability-agent"]
         DS2["DaemonSet: promtail"]
-        S2["Services:<br/>prometheus, grafana LoadBalancer<br/>loki, observability-agent ClusterIP<br/>talk-to-observability-agent LoadBalancer :8092"]
+        S2["Services:<br/>prometheus, grafana LoadBalancer<br/>loki, observability-server ClusterIP<br/>talk-to-observability-agent LoadBalancer :8092"]
         CM2["ConfigMaps + Secret<br/>OPENAI_API_KEY"]
         D2 --> S2
         DS2 --> LOKI2["loki :3100"]
@@ -145,7 +145,7 @@ flowchart LR
     end
 
     subgraph Agents["observability namespace"]
-        A4["observability-agent"]
+        A4["observability-server"]
         A5["talk-to-observability-agent"]
     end
 
@@ -174,7 +174,7 @@ sequenceDiagram
     participant U as Browser :8092
     participant T as talk-to-observability-agent
     participant LG as LangGraph workflow
-    participant O as observability-agent
+    participant O as observability-server
     participant L as Loki
     participant P as Prometheus
     participant AI as OpenAI
@@ -206,7 +206,7 @@ LangGraph node detail: [`workflow-diagram.md`](microservices/talk-to-observabili
 | Loki | Grafana Loki | observability | `loki` | ClusterIP `:3100` | Log aggregation |
 | Promtail | Promtail | observability | DaemonSet | — | Ships pod logs → Loki |
 | Grafana | Grafana | observability | `grafana` | LoadBalancer `:3000` | Dashboards + Explore |
-| observability-agent | Java, Spring Boot, MCP | observability | `observability-agent` | ClusterIP `:8091` | REST + MCP → Loki/Prometheus |
+| observability-server | Java, Spring Boot, MCP | observability | `observability-server` | ClusterIP `:8091` | REST + MCP → Loki/Prometheus |
 | talk-to-observability-agent | Python, FastAPI, LangGraph | observability | `talk-to-observability-agent` | LoadBalancer `:8092` | NL investigation + chat UI |
 | traffic script | Python aiohttp | host | — | `localhost:8090` | Demo load + correlation IDs |
 
@@ -214,7 +214,7 @@ LangGraph node detail: [`workflow-diagram.md`](microservices/talk-to-observabili
 
 - Header: `X-Correlation-Id` (generated or forwarded)
 - Logged as `correlationId` in JSON stdout → Promtail → Loki
-- Used by observability-agent LogQL and chat investigations
+- Used by observability-server LogQL and chat investigations
 
 ## Local URLs (after `start.bat`)
 
@@ -225,7 +225,7 @@ LangGraph node detail: [`workflow-diagram.md`](microservices/talk-to-observabili
 | http://localhost:9090 | Prometheus |
 | http://localhost:8092 | Observability chat UI |
 | http://localhost:8092/docs | FastAPI Swagger |
-| http://localhost:8091/swagger-ui.html | observability-agent *(port-forward)* |
+| http://localhost:8091/swagger-ui.html | observability-server *(port-forward)* |
 
 ## Repository map (runtime)
 
@@ -234,7 +234,7 @@ microservices/
   ecommerce/          → Deployment in ecommerce
   product/            → Deployment in ecommerce
   images/             → Deployment in ecommerce
-  observability-agent/→ Deployment in observability
+  observability-server/→ Deployment in observability
   talk-to-observability-agent/
     app/graph/        → LangGraph workflow
     ui/               → React chat (built into image)
@@ -242,7 +242,7 @@ k8s/
   ecommerce/          → app manifests
   ingress/
   observability/      → prometheus, loki, promtail, grafana
-  observability-agent/
+  observability-server/
   talk-to-observability-agent/
 start.bat / stop.bat  → local orchestration
 ```

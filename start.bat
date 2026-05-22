@@ -16,7 +16,7 @@ kubectl delete -f "%ROOT_DIR%\k8s\product" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\configmap.yaml" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\deployment.yaml" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\service.yaml" --ignore-not-found
-kubectl delete -f "%ROOT_DIR%\k8s\observability-agent" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\observability-server" --ignore-not-found
 kubectl delete namespace observability-agent --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\grafana" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\promtail" --ignore-not-found
@@ -25,11 +25,11 @@ kubectl delete -f "%ROOT_DIR%\k8s\observability\prometheus" --ignore-not-found
 
 echo [3/12] Using image tag !IMAGE_TAG!...
 
-echo [4/12] Building observability-agent...
-cd /d "%ROOT_DIR%\microservices\observability-agent" || goto :fail
+echo [4/12] Building observability-server...
+cd /d "%ROOT_DIR%\microservices\observability-server" || goto :fail
 call mvn clean package
 if errorlevel 1 goto :fail
-docker build --no-cache -t observability-agent:!IMAGE_TAG! .
+docker build --no-cache -t observability-server:!IMAGE_TAG! .
 if errorlevel 1 goto :fail
 
 echo [5/12] Building talk-to-observability-agent (API + chat UI)...
@@ -90,9 +90,9 @@ kubectl apply -f "%ROOT_DIR%\k8s\observability\grafana"
 if errorlevel 1 goto :fail
 
 echo [11/12] Deploying observability services...
-kubectl apply -f "%ROOT_DIR%\k8s\observability-agent"
+kubectl apply -f "%ROOT_DIR%\k8s\observability-server"
 if errorlevel 1 goto :fail
-kubectl set image deployment/observability-agent observability-agent=observability-agent:!IMAGE_TAG! -n observability
+kubectl set image deployment/observability-server observability-server=observability-server:!IMAGE_TAG! -n observability
 if errorlevel 1 goto :fail
 kubectl apply -f "%ROOT_DIR%\k8s\talk-to-observability-agent\configmap.yaml"
 if errorlevel 1 goto :fail
@@ -116,7 +116,7 @@ kubectl rollout status deployment/loki -n observability
 if errorlevel 1 goto :fail
 kubectl rollout status deployment/grafana -n observability
 if errorlevel 1 goto :fail
-kubectl rollout status deployment/observability-agent -n observability
+kubectl rollout status deployment/observability-server -n observability
 if errorlevel 1 goto :fail
 kubectl rollout status deployment/talk-to-observability-agent -n observability
 if errorlevel 1 goto :fail
@@ -142,7 +142,7 @@ echo Test with:
 echo   kubectl logs -n ecommerce deploy/product
 echo   kubectl logs -n ecommerce deploy/images
 echo   kubectl logs -n ecommerce deploy/ecommerce
-echo   kubectl logs -n observability deploy/observability-agent
+echo   kubectl logs -n observability deploy/observability-server
 echo   kubectl logs -n observability deploy/talk-to-observability-agent
 echo   curl http://localhost:3000
 echo   curl http://localhost:8090/ecommerce-service/ecommerceProducts
@@ -150,7 +150,7 @@ echo   http://localhost:9090
 echo   http://localhost:8092/health
 echo   http://localhost:8092          (observability chatbot UI)
 echo   http://localhost:8092/docs     (FastAPI Swagger)
-echo   kubectl port-forward -n observability svc/observability-agent 8091:8091
+echo   kubectl port-forward -n observability svc/observability-server 8091:8091
 echo   http://localhost:8091/swagger-ui.html
 echo.
 echo Chatbot UI: see chatbot-ui-readme.md

@@ -19,14 +19,14 @@ kubectl create secret generic talk-to-observability-agent-secret `
 | Prometheus | http://localhost:9090 | |
 | Observability chatbot UI | http://localhost:8092 | Bundled in talk-to-observability-agent image after `start.bat` |
 | Talk-to-observability | http://localhost:8092/docs | FastAPI Swagger |
-| Observability-agent | http://localhost:8091/swagger-ui.html | ClusterIP — port-forward below |
+| observability-server | http://localhost:8091/swagger-ui.html | ClusterIP — port-forward below |
 
 Full chat UI guide: **[chatbot-ui-readme.md](chatbot-ui-readme.md)**
 
-**Port-forward observability-agent:**
+**Port-forward observability-server:**
 
 ```powershell
-kubectl port-forward -n observability svc/observability-agent 8091:8091
+kubectl port-forward -n observability svc/observability-server 8091:8091
 ```
 
 **Product / images** (ClusterIP): `kubectl port-forward -n ecommerce svc/product-service 8090:8090` (same for `images-service`).
@@ -42,7 +42,7 @@ After `start.bat`, open **http://localhost:8092**. The React UI calls `POST /api
 
 | Service | UI |
 |---------|-----|
-| observability-agent | http://localhost:8091/swagger-ui.html |
+| observability-server | http://localhost:8091/swagger-ui.html |
 | talk-to-observability-agent | http://localhost:8092/docs |
 
 App services (ecommerce, product, images) have no Swagger — use REST/actuator URLs in README.
@@ -66,8 +66,8 @@ UUID on every request; echoed in response header and JSON logs as `correlationId
 |---------|-------------|-------------------------------|
 | ecommerce | `X-Correlation-Id` → product/images via RestTemplate | `RequestLoggingFilter` |
 | product, images | inbound header | `RequestLoggingFilter` |
-| observability-agent | `CorrelationIdFilter` + `RequestLoggingFilter` | yes |
-| talk-to-observability-agent | middleware → observability-agent | yes |
+| observability-server | `CorrelationIdFilter` + `RequestLoggingFilter` | yes |
+| talk-to-observability-agent | middleware → observability-server | yes |
 
 **Loki (all ecommerce apps):**
 
@@ -81,7 +81,7 @@ UUID on every request; echoed in response header and JSON logs as `correlationId
 {"query": "slow request last 30 minutes", "correlationId": "<uuid-from-script>"}
 ```
 
-**503 on `/api/v1/investigate`:** pod can be UP; check response `detail` and header `X-Correlation-Id`. Common causes: observability-agent/Loki/Prometheus error, missing `OPENAI_API_KEY`.
+**503 on `/api/v1/investigate`:** pod can be UP; check response `detail` and header `X-Correlation-Id`. Common causes: observability-server/Loki/Prometheus error, missing `OPENAI_API_KEY`.
 
 ## Grafana / Loki (quick)
 
@@ -120,7 +120,7 @@ Details: [scripts/TRAFFIC_SPIKE.md](scripts/TRAFFIC_SPIKE.md)
 | Namespace | Workloads |
 |-----------|-----------|
 | `ecommerce` | ecommerce, product, images, ingress |
-| `observability` | prometheus, loki, promtail, grafana, observability-agent, talk-to-observability-agent |
+| `observability` | prometheus, loki, promtail, grafana, observability-server, talk-to-observability-agent |
 
 ```powershell
 kubectl get pods -n ecommerce

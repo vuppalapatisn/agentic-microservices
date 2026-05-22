@@ -5,7 +5,7 @@ metadata:
   namespace: observability
 data:
   OPENAI_MODEL: "gpt-4.1-mini"
-  OBSERVABILITY_AGENT_BASE_URL: "http://observability-agent.observability.svc.cluster.local:8091"
+  OBSERVABILITY_AGENT_BASE_URL: "http://observability-server.observability.svc.cluster.local:8091"
   REQUEST_TIMEOUT_SECONDS: "10"
   STARTUP_VALIDATION_RETRIES: "30"
   STARTUP_VALIDATION_RETRY_SECONDS: "2"
@@ -13,3 +13,4 @@ data:
   GRAFANA_API_BASE_URL: "http://grafana.observability.svc.cluster.local:3000"
   GRAFANA_LOKI_DATASOURCE_UID: "loki"
   GRAFANA_DASHBOARD_UID: "ecommerce-observability"
+  LANGGRAPH_DEBUG: "true"

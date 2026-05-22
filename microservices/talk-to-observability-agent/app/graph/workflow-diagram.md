@@ -2,7 +2,7 @@
 
 Source: [`workflow.py`](workflow.py) — `InvestigationWorkflow._build_graph()`
 
-The graph uses **conditional edges** after `build_investigation_plan_node`. Classification is keyword-based in [`classification.py`](classification.py); fetch nodes are skipped when flags are false (empty lists, no observability-agent calls).
+The graph uses **conditional edges** after `build_investigation_plan_node`. Classification is keyword-based in [`classification.py`](classification.py); fetch nodes are skipped when flags are false (empty lists, no observability-server calls).
 
 ## Flow diagram
 

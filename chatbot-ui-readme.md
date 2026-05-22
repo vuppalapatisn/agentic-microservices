@@ -64,10 +64,10 @@ $env:OPENAI_API_KEY = "your-key"
 uvicorn app.main:app --reload --port 8092
 ```
 
-Port-forward observability-agent if not exposed on localhost:
+Port-forward observability-server if not exposed on localhost:
 
 ```powershell
-kubectl port-forward -n observability svc/observability-agent 8091:8091
+kubectl port-forward -n observability svc/observability-server 8091:8091
 ```
 
 **Terminal 2 — Vite dev server** (proxies `/api` to 8092):
@@ -97,8 +97,8 @@ kubectl rollout status deployment/talk-to-observability-agent -n observability -
 | Symptom | What to check |
 |---------|----------------|
 | Blank page at :8092 | Pod logs: `kubectl logs -n observability deploy/talk-to-observability-agent` — image must include `static/` from UI build |
-| CrashLoop `observability-agent is unavailable during startup validation` | Startup race: rebuild talk-to image (retries up to ~60s) or ensure observability-agent pod is Running first |
-| 503 / error in chat | `OPENAI_API_KEY` secret in `observability`; observability-agent and Loki/Prometheus healthy |
+| CrashLoop `observability-server is unavailable during startup validation` | Startup race: rebuild talk-to image (retries up to ~60s) or ensure observability-server pod is Running first |
+| 503 / error in chat | `OPENAI_API_KEY` secret in `observability`; observability-server and Loki/Prometheus healthy |
 | Grafana links 404 | Grafana at http://localhost:3000; configmap `GRAFANA_BASE_URL` is browser URL, `GRAFANA_API_BASE_URL` is in-cluster |
 | `npm` not found (local dev) | Install Node.js LTS; restart terminal |
 

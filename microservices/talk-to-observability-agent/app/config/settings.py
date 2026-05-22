@@ -8,7 +8,7 @@ class Settings:
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip()
         self.observability_agent_base_url = os.getenv(
             "OBSERVABILITY_AGENT_BASE_URL",
-            "http://observability-agent.observability.svc.cluster.local:8091",
+            "http://observability-server.observability.svc.cluster.local:8091",
         ).strip()
         self.request_timeout_seconds = int(os.getenv("REQUEST_TIMEOUT_SECONDS", "10"))
         self.startup_validation_retries = int(os.getenv("STARTUP_VALIDATION_RETRIES", "30"))
@@ -24,6 +24,11 @@ class Settings:
         self.grafana_dashboard_uid = os.getenv(
             "GRAFANA_DASHBOARD_UID", "ecommerce-observability"
         ).strip()
+        self.langgraph_debug = os.getenv("LANGGRAPH_DEBUG", "true").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        )
 
 
 @lru_cache(maxsize=1)

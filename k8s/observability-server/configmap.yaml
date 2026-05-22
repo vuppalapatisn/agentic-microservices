@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: observability-agent-config
+  name: observability-server-config
   namespace: observability
 data:
   OBSERVABILITY_LOKI_BASE_URL: "http://loki.observability.svc.cluster.local:3100"

@@ -42,13 +42,13 @@ data:
               __path__: /var/log/pods/ecommerce_images-*/images/*.log
         pipeline_stages:
           - cri: {}
-      - job_name: observability-agent
+      - job_name: observability-server
         static_configs:
           - targets: [localhost]
             labels:
               namespace: observability
-              app: observability-agent
-              __path__: /var/log/pods/observability_observability-agent-*/observability-agent/*.log
+              app: observability-server
+              __path__: /var/log/pods/observability_observability-server-*/observability-server/*.log
         pipeline_stages:
           - cri: {}
       - job_name: talk-to-observability-agent

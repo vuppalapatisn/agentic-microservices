@@ -50,7 +50,7 @@ goto :eof
 set "NAME=%~1"
 if /i "!NAME!"=="graphana" set "NAME=grafana"
 
-if /i "!NAME!"=="observability-agent" goto :do_observability_agent
+if /i "!NAME!"=="observability-server" goto :do_observability_server
 if /i "!NAME!"=="talk-to-observability-agent" goto :do_talk_to_observability_agent
 if /i "!NAME!"=="ecommerce" goto :do_ecommerce
 if /i "!NAME!"=="ecommerce-service" goto :do_ecommerce
@@ -70,21 +70,21 @@ echo.
 goto :usage
 exit /b 1
 
-:do_observability_agent
+:do_observability_server
 echo [build] mvn clean package...
-cd /d "%ROOT_DIR%\microservices\observability-agent" || exit /b 1
+cd /d "%ROOT_DIR%\microservices\observability-server" || exit /b 1
 call mvn clean package
 if errorlevel 1 exit /b 1
-echo [build] docker image observability-agent:!IMAGE_TAG!...
-docker build --no-cache -t observability-agent:!IMAGE_TAG! .
+echo [build] docker image observability-server:!IMAGE_TAG!...
+docker build --no-cache -t observability-server:!IMAGE_TAG! .
 if errorlevel 1 exit /b 1
 cd /d "%ROOT_DIR%" || exit /b 1
 echo [deploy] kubectl apply + set image...
-kubectl apply -f "%ROOT_DIR%\k8s\observability-agent"
+kubectl apply -f "%ROOT_DIR%\k8s\observability-server"
 if errorlevel 1 exit /b 1
-kubectl set image deployment/observability-agent observability-agent=observability-agent:!IMAGE_TAG! -n observability
+kubectl set image deployment/observability-server observability-server=observability-server:!IMAGE_TAG! -n observability
 if errorlevel 1 exit /b 1
-kubectl rollout status deployment/observability-agent -n observability --timeout=180s
+kubectl rollout status deployment/observability-server -n observability --timeout=180s
 exit /b %errorlevel%
 
 :do_talk_to_observability_agent
@@ -203,7 +203,7 @@ echo   restart--redeploy-service.bat ^<service^> [service2 ...]
 echo   restart--redeploy-service.bat --help
 echo.
 echo Custom-built services ^(mvn clean package + docker build + kubectl set image^):
-echo   observability-agent
+echo   observability-server
 echo   talk-to-observability-agent
 echo   ecommerce          ^(alias: ecommerce-service^)
 echo   product            ^(alias: product-service^)
@@ -220,8 +220,8 @@ echo   ingress
 echo.
 echo Examples:
 echo   restart--redeploy-service.bat talk-to-observability-agent
-echo   restart--redeploy-service.bat observability-agent talk-to-observability-agent
-echo   restart--redeploy-service.bat grafana observability-agent
+echo   restart--redeploy-service.bat observability-server talk-to-observability-agent
+echo   restart--redeploy-service.bat grafana observability-server
 echo   restart--redeploy-service.bat ecommerce product images
 echo.
 if "%~1"=="" exit /b 0

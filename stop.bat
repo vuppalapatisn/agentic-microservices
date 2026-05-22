@@ -11,7 +11,7 @@ echo [2/4] Removing observability resources...
 kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\configmap.yaml" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\deployment.yaml" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\talk-to-observability-agent\service.yaml" --ignore-not-found
-kubectl delete -f "%ROOT_DIR%\k8s\observability-agent" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\observability-server" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\grafana" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\promtail" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\observability\loki" --ignore-not-found

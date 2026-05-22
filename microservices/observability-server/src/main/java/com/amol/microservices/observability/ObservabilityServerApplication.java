@@ -7,8 +7,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 
 @SpringBootApplication
 @EnableConfigurationProperties(ObservabilityProperties.class)
-public class ObservabilityAgentApplication {
+public class ObservabilityServerApplication {
     public static void main(String[] args) {
-        SpringApplication.run(ObservabilityAgentApplication.class, args);
+        SpringApplication.run(ObservabilityServerApplication.class, args);
     }
 }

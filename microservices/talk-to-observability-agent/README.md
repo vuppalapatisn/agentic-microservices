@@ -1,6 +1,6 @@
 # Talk To Observability Agent
 
-FastAPI + LangGraph service that investigates observability questions using the existing `observability-agent`.
+FastAPI + LangGraph service that investigates observability questions using the existing `observability-server`.
 
 ## API
 

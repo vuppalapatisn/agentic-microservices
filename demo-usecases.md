@@ -19,7 +19,7 @@ Optional: `pip install -r scripts/requirements.txt` for the traffic script.
 After code changes, rebuild Java services with Maven, then:
 
 ```bat
-restart--redeploy-service.bat ecommerce observability-agent talk-to-observability-agent
+restart--redeploy-service.bat ecommerce observability-server talk-to-observability-agent
 ```
 
 ---

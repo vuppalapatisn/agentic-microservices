@@ -1,6 +1,6 @@
 # microservices-ecommerce-2
 
-Kubernetes-native ecommerce demo with Prometheus, Loki, Grafana, observability-agent, talk-to-observability-agent, and a browser chat UI for investigations.
+Kubernetes-native ecommerce demo with Prometheus, Loki, Grafana, observability-server, talk-to-observability-agent, and a browser chat UI for investigations.
 
 <img width="1536" height="1024" alt="agentic-microservices-architecture" src="https://github.com/user-attachments/assets/03728911-082f-4cf3-a637-4ce7fbfbb202" />
 
@@ -29,7 +29,7 @@ restart--redeploy-service.bat --help                        # list all service n
 | Prometheus | http://localhost:9090 |
 | Observability chatbot UI | http://localhost:8092 |
 | Talk-to-observability (Swagger) | http://localhost:8092/docs |
-| Observability-agent (Swagger) | http://localhost:8091/swagger-ui.html *(port-forward)* |
+| observability-server (Swagger) | http://localhost:8091/swagger-ui.html *(port-forward)* |
 
 Chat UI setup and troubleshooting: **[chatbot-ui-readme.md](chatbot-ui-readme.md)**
 

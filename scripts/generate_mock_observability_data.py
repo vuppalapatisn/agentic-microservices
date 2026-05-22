@@ -14,7 +14,7 @@ METRICS_DIR = ROOT / "generated-metrics"
 LOGS_DIR = ROOT / "generated-logs"
 STATE_FILE = METRICS_DIR / "manifest.json"
 SCENARIO_DATE = dt.date(2026, 5, 13)
-SERVICES = ["ecommerce", "product", "images", "observability-agent"]
+SERVICES = ["ecommerce", "product", "images", "observability-server"]
 GC_LABELS = 'action="end of minor GC",cause="G1 Evacuation Pause"'
 
 
@@ -64,7 +64,7 @@ def service_multiplier(service: str) -> float:
         "ecommerce": 1.0,
         "product": 0.96,
         "images": 0.92,
-        "observability-agent": 0.10,
+        "observability-server": 0.10,
     }[service]
 
 
@@ -74,13 +74,13 @@ def build_series() -> Dict[str, List[dict]]:
         "ecommerce": {"heap_mb": 340.0, "gc_cycle": 0, "threads": 32},
         "product": {"heap_mb": 220.0, "gc_cycle": 0, "threads": 22},
         "images": {"heap_mb": 180.0, "gc_cycle": 0, "threads": 20},
-        "observability-agent": {"heap_mb": 140.0, "gc_cycle": 0, "threads": 14},
+        "observability-server": {"heap_mb": 140.0, "gc_cycle": 0, "threads": 14},
     }
     max_heap_mb = {
         "ecommerce": 820.0,
         "product": 540.0,
         "images": 420.0,
-        "observability-agent": 300.0,
+        "observability-server": 300.0,
     }
     series = {service: [] for service in SERVICES}
     gc_events = {s: 0 for s in SERVICES}
@@ -92,25 +92,25 @@ def build_series() -> Dict[str, List[dict]]:
         batch_window = 1380 <= minute_of_day <= 1410
         for service in SERVICES:
             base_load = normal_load(minute_of_day) * service_multiplier(service)
-            if service == "observability-agent" and batch_window:
+            if service == "observability-server" and batch_window:
                 base_load = 12
             jitter = ((minute_of_day + len(service)) % 5) - 2
             request_rate = max(1.0, base_load + jitter)
-            if service == "observability-agent":
+            if service == "observability-server":
                 request_rate = max(0.5, base_load + 0.2 * jitter)
 
             thread_base = {
                 "ecommerce": 24,
                 "product": 18,
                 "images": 16,
-                "observability-agent": 10,
+                "observability-server": 10,
             }[service]
-            thread_boost = 14 if batch_window and service != "observability-agent" else 4 if batch_window else 0
+            thread_boost = 14 if batch_window and service != "observability-server" else 4 if batch_window else 0
             threads = max(thread_base, int(round(thread_base + request_rate * 1.3 + thread_boost)))
 
             state[service]["gc_cycle"] += 1
             gc_interval = 85 if service == "ecommerce" else 105 if service == "product" else 115 if service == "images" else 140
-            if batch_window and service != "observability-agent":
+            if batch_window and service != "observability-server":
                 gc_interval = max(9, gc_interval // 8)
 
             full_gc = state[service]["gc_cycle"] >= gc_interval
@@ -130,7 +130,7 @@ def build_series() -> Dict[str, List[dict]]:
             latency = round(180 + request_rate * (12 if service == "ecommerce" else 8), 2)
             if gc_pause > 0:
                 latency += gc_pause * 1100
-            if batch_window and service != "observability-agent":
+            if batch_window and service != "observability-server":
                 latency += 550
 
             heap_bytes = round(state[service]["heap_mb"] * 1024 * 1024, 3)
@@ -305,12 +305,12 @@ def write_log_files(series: Dict[str, List[dict]]) -> None:
 
         if idx % 12 == 0:
             agent_duration = 70 + (idx % 6) * 15
-            logs["observability-agent"].append(
+            logs["observability-server"].append(
                 log_json(
                     timestamp + dt.timedelta(seconds=4),
                     "INFO",
                     correlation_id,
-                    "observability-agent",
+                    "observability-server",
                     "reactor-http-nio-2",
                     "mock",
                     "Observability query completed",

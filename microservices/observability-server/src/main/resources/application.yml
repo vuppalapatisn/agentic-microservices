@@ -3,11 +3,11 @@ server:
 
 spring:
   application:
-    name: observability-agent
+    name: observability-server
   ai:
     mcp:
       server:
-        name: observability-agent
+        name: observability-server
         version: 0.0.1
         protocol: STREAMABLE
         instructions: Observability MCP server for logs, metrics and service discovery.

@@ -23,6 +23,11 @@ class JsonFormatter(logging.Formatter):
             "path",
             "error",
             "observabilityAgentBaseUrl",
+            "node",
+            "nodesExecuted",
+            "nodeSummary",
+            "needsLogs",
+            "needsMonitoring",
         ):
             value = getattr(record, key, None)
             if value is not None:

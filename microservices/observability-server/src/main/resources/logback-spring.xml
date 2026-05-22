@@ -9,7 +9,7 @@
                     <timeZone>UTC</timeZone>
                 </timestamp>
                 <pattern>
-                    <pattern>{"service":"${serviceName:-observability-agent}"}</pattern>
+                    <pattern>{"service":"${serviceName:-observability-server}"}</pattern>
                 </pattern>
                 <logLevel>
                     <fieldName>level</fieldName>

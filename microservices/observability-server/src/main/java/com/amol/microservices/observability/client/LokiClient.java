@@ -74,8 +74,8 @@ public class LokiClient {
 
     private String logStreamSelector(String serviceName) {
         String app = normalizeLogServiceField(serviceName);
-        if ("observability-agent".equals(app)) {
-            return "{namespace=\"observability\",app=\"observability-agent\"}";
+        if ("observability-server".equals(app)) {
+            return "{namespace=\"observability\",app=\"observability-server\"}";
         }
         return "{namespace=\"ecommerce\",app=\"" + escapeLogql(app) + "\"}";
     }

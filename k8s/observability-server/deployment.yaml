@@ -1,25 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: observability-agent
+  name: observability-server
   namespace: observability
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: observability-agent
+      app: observability-server
   template:
     metadata:
       labels:
-        app: observability-agent
+        app: observability-server
     spec:
       containers:
-        - name: observability-agent
-          image: observability-agent:v1
+        - name: observability-server
+          image: observability-server:v1
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: observability-agent-config
+                name: observability-server-config
           ports:
             - containerPort: 8091
           readinessProbe:

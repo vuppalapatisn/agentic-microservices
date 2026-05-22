@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.amol.microservices</groupId>
-    <artifactId>observability-agent</artifactId>
+    <artifactId>observability-server</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 

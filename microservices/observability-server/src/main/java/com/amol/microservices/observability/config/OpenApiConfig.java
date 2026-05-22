@@ -12,7 +12,7 @@ public class OpenApiConfig {
     public OpenAPI observabilityOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Observability Agent API")
+                        .title("Observability Server API")
                         .description("Query logs from Loki and metrics from Prometheus for ecommerce microservices.")
                         .version("0.0.1"));
     }

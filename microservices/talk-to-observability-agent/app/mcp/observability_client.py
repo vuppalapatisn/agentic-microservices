@@ -11,7 +11,7 @@ from app.middleware.correlation import CORRELATION_HEADER, get_correlation_id
 from app.models.schemas import LogFinding, MetricFinding
 
 
-logger = get_logger("talk-to-observability-agent.mcp")
+logger = get_logger("talk-to-observability-server.mcp")
 
 
 class ObservabilityAgentClient:
@@ -38,7 +38,7 @@ class ObservabilityAgentClient:
                 logger.info(
                     "observability_agent_validation_complete",
                     extra={
-                        "service": "talk-to-observability-agent",
+                        "service": "talk-to-observability-server",
                         "correlationId": get_correlation_id(),
                         "durationMs": duration_ms,
                         "attempt": attempt,
@@ -48,7 +48,7 @@ class ObservabilityAgentClient:
             except httpx.HTTPStatusError as exc:
                 body = exc.response.text[:500] if exc.response is not None else ""
                 raise RuntimeError(
-                    f"observability-agent returned {exc.response.status_code} during startup validation: {body}"
+                    f"observability-server returned {exc.response.status_code} during startup validation: {body}"
                 ) from exc
             except httpx.HTTPError as exc:
                 last_error = exc
@@ -57,7 +57,7 @@ class ObservabilityAgentClient:
                 logger.warning(
                     "observability_agent_validation_retry",
                     extra={
-                        "service": "talk-to-observability-agent",
+                        "service": "talk-to-observability-server",
                         "correlationId": get_correlation_id(),
                         "attempt": attempt,
                         "maxAttempts": max_attempts,
@@ -69,7 +69,7 @@ class ObservabilityAgentClient:
                 await asyncio.sleep(retry_seconds)
 
         raise RuntimeError(
-            f"observability-agent is unavailable during startup validation after {max_attempts} attempts: {last_error}"
+            f"observability-server is unavailable during startup validation after {max_attempts} attempts: {last_error}"
         ) from last_error
 
     async def get_logs_by_correlation_id(self, correlation_id: str, start_time: str, end_time: str) -> list[LogFinding]:
@@ -144,16 +144,16 @@ class ObservabilityAgentClient:
         except httpx.HTTPStatusError as exc:
             body = exc.response.text[:500] if exc.response is not None else ""
             raise RuntimeError(
-                f"observability-agent returned {exc.response.status_code} for {path}: {body}"
+                f"observability-server returned {exc.response.status_code} for {path}: {body}"
             ) from exc
         except httpx.HTTPError as exc:
-            raise RuntimeError(f"observability-agent is unavailable for {path}: {exc}") from exc
+            raise RuntimeError(f"observability-server is unavailable for {path}: {exc}") from exc
         finally:
             duration_ms = round((perf_counter() - start) * 1000, 2)
             logger.info(
                 "telemetry_fetch_complete",
                 extra={
-                    "service": "talk-to-observability-agent",
+                    "service": "talk-to-observability-server",
                     "correlationId": correlation_id,
                     "durationMs": duration_ms,
                     "query": path,

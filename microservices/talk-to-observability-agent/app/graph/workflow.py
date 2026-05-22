@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 import re
+from time import perf_counter
 from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -20,8 +21,12 @@ from app.models.schemas import (
 )
 from app.prompts.reasoning import build_reasoning_messages
 from app.services.reasoning_service import ReasoningService
+from app.logging.json_logger import get_logger
 from app.util.formatting import format_bytes, format_percent
 from app.util.grafana_links import build_dashboard_url, build_loki_explore_url
+
+
+logger = get_logger("talk-to-observability-agent.graph")
 
 
 SERVICE_ALIASES = {
@@ -169,13 +174,70 @@ class InvestigationWorkflow:
             return "fetch_thread_metrics_node"
         return "correlation_node"
 
+    @staticmethod
+    def _node_update_summary(node_output: dict[str, Any]) -> dict[str, Any]:
+        summary: dict[str, Any] = {}
+        for key, value in node_output.items():
+            if key == "request":
+                continue
+            if isinstance(value, list):
+                summary[f"{key}Count"] = len(value)
+            elif isinstance(value, bool):
+                summary[key] = value
+            elif isinstance(value, (str, int, float)) or value is None:
+                summary[key] = value
+        return summary
+
     async def run(self, request: InvestigationRequest, correlation_id: str) -> InvestigationResponse:
         state: InvestigationState = {
             "request": request,
             "investigation_id": correlation_id,
             "query": request.query,
         }
-        result = await self.graph.ainvoke(state)
+        run_start = perf_counter()
+        merged: InvestigationState = dict(state)
+        nodes_executed: list[str] = []
+
+        if self.settings.langgraph_debug:
+            logger.info(
+                "langgraph_run_start",
+                extra={
+                    "correlationId": correlation_id,
+                    "investigationId": correlation_id,
+                    "query": request.query,
+                },
+            )
+
+        async for update in self.graph.astream(state, stream_mode="updates"):
+            for node_name, node_output in update.items():
+                merged.update(node_output)
+                nodes_executed.append(node_name)
+                if not self.settings.langgraph_debug:
+                    continue
+                extra: dict[str, Any] = {
+                    "correlationId": correlation_id,
+                    "investigationId": correlation_id,
+                    "node": node_name,
+                    "nodeSummary": self._node_update_summary(node_output),
+                }
+                if "needs_logs" in node_output:
+                    extra["needsLogs"] = node_output["needs_logs"]
+                if "needs_monitoring" in node_output:
+                    extra["needsMonitoring"] = node_output["needs_monitoring"]
+                logger.info("langgraph_node_complete", extra=extra)
+
+        if self.settings.langgraph_debug:
+            logger.info(
+                "langgraph_run_complete",
+                extra={
+                    "correlationId": correlation_id,
+                    "investigationId": correlation_id,
+                    "durationMs": round((perf_counter() - run_start) * 1000, 2),
+                    "nodesExecuted": nodes_executed,
+                },
+            )
+
+        result = merged
         return InvestigationResponse(
             investigationId=correlation_id,
             correlationId=correlation_id,
