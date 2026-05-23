@@ -1,4 +1,4 @@
-# microservices-ecommerce-2
+# Agentic microservices - Automated observability analysis with agentic AI
 
 - Why did the request respond so slowly in production ?
 - What is the heap usage right now ?
