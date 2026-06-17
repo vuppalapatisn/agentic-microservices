@@ -7,6 +7,7 @@ FastAPI + LangGraph service that investigates observability questions using the 
 - `POST /api/v1/investigate` — run an investigation
 - `GET /health` — health check
 
+
 ## Chat UI (React + Vite + TypeScript)
 
 A browser chatbot calls the investigate API and shows summary, evidence, and Grafana links.
