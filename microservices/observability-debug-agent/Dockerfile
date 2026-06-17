@@ -12,8 +12,17 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# ✅ fix SSL + cert issues
+RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# ✅ robust install
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir \
+       --trusted-host pypi.org \
+       --trusted-host files.pythonhosted.org \
+       -r requirements.txt
 
 COPY app ./app
 COPY --from=ui-build /ui/dist ./static
