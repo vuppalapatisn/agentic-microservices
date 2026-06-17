@@ -14,7 +14,7 @@ ENV PYTHONUNBUFFERED=1
 
 # ✅ fix SSL + cert issues
 RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
-
+ 
 COPY requirements.txt .
 
 # ✅ robust install
