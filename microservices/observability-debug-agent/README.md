@@ -31,7 +31,6 @@ cd microservices/observability-debug-agent/ui
 npm install
 npm run dev
 ```
-
 Open http://localhost:5173
 
 ### Production (UI bundled in Docker image)
