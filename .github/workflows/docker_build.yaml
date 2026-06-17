@@ -1,0 +1,260 @@
+name: Docker Build & Push — All Services
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "microservices/**"
+      - ".github/workflows/docker_build.yaml"
+  pull_request:
+    branches:
+      - master
+      - main
+    paths:
+      - "microservices/**"
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to build (leave empty to build all)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - ecommerce
+          - product
+          - images
+          - observability-server
+          - observability-debug-agent
+      push_image:
+        description: "Push image to registry?"
+        required: false
+        default: "true"
+        type: boolean
+
+# ---------------------------------------------------------------------------
+# Global env — override these in your repository secrets / variables
+# ---------------------------------------------------------------------------
+env:
+  REGISTRY: ghcr.io                          # GitHub Container Registry
+  IMAGE_PREFIX: ${{ github.repository_owner }} # e.g. vuppalapatisn
+  # To use Docker Hub instead, set REGISTRY: docker.io
+  # and IMAGE_PREFIX: <your-dockerhub-username>
+
+jobs:
+  # =========================================================================
+  # 1. Resolve which services to build
+  # =========================================================================
+  resolve-matrix:
+    name: Resolve build matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          SELECTED="${{ github.event.inputs.service }}"
+          if [ -z "$SELECTED" ]; then
+            echo 'matrix={"include":[
+              {"service":"ecommerce",                 "context":"microservices/ecommerce",                 "java":true,  "dockerfile":"microservices/ecommerce/Dockerfile"},
+              {"service":"product",                   "context":"microservices/product",                   "java":true,  "dockerfile":"microservices/product/Dockerfile"},
+              {"service":"images",                    "context":"microservices/images",                    "java":true,  "dockerfile":"microservices/images/Dockerfile"},
+              {"service":"observability-server",      "context":"microservices/observability-server",      "java":true,  "dockerfile":"microservices/observability-server/Dockerfile"},
+              {"service":"observability-debug-agent", "context":"microservices/observability-debug-agent", "java":false, "dockerfile":"microservices/observability-debug-agent/Dockerfile"}
+            ]}' >> "$GITHUB_OUTPUT"
+          else
+            # Single service selected via workflow_dispatch
+            case "$SELECTED" in
+              ecommerce)
+                echo 'matrix={"include":[{"service":"ecommerce","context":"microservices/ecommerce","java":true,"dockerfile":"microservices/ecommerce/Dockerfile"}]}' >> "$GITHUB_OUTPUT" ;;
+              product)
+                echo 'matrix={"include":[{"service":"product","context":"microservices/product","java":true,"dockerfile":"microservices/product/Dockerfile"}]}' >> "$GITHUB_OUTPUT" ;;
+              images)
+                echo 'matrix={"include":[{"service":"images","context":"microservices/images","java":true,"dockerfile":"microservices/images/Dockerfile"}]}' >> "$GITHUB_OUTPUT" ;;
+              observability-server)
+                echo 'matrix={"include":[{"service":"observability-server","context":"microservices/observability-server","java":true,"dockerfile":"microservices/observability-server/Dockerfile"}]}' >> "$GITHUB_OUTPUT" ;;
+              observability-debug-agent)
+                echo 'matrix={"include":[{"service":"observability-debug-agent","context":"microservices/observability-debug-agent","java":false,"dockerfile":"microservices/observability-debug-agent/Dockerfile"}]}' >> "$GITHUB_OUTPUT" ;;
+            esac
+          fi
+
+  # =========================================================================
+  # 2. Build Java services (Maven → JAR → Docker)
+  # =========================================================================
+  build-java:
+    name: Build ${{ matrix.service }} (Java)
+    needs: resolve-matrix
+    if: ${{ fromJson(needs.resolve-matrix.outputs.matrix).include[0] != null }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.resolve-matrix.outputs.matrix) }}
+
+    # Only run this job for services where java == true
+    steps:
+      - name: Skip non-Java services
+        if: ${{ !matrix.java }}
+        run: echo "Skipping Java build for ${{ matrix.service }} — handled by build-python job"
+
+      - name: Checkout
+        if: ${{ matrix.java }}
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        if: ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      # -----------------------------------------------------------------------
+      # Maven build — produces the JAR the Dockerfile ADDs
+      # -----------------------------------------------------------------------
+      - name: Maven build — ${{ matrix.service }}
+        if: ${{ matrix.java }}
+        working-directory: ${{ matrix.context }}
+        run: mvn clean package -DskipTests --no-transfer-progress
+
+      # -----------------------------------------------------------------------
+      # Docker — multi-platform (linux/amd64 + linux/arm64 for Mac M4)
+      # -----------------------------------------------------------------------
+      - name: Set up QEMU (cross-platform emulation)
+        if: ${{ matrix.java }}
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: ${{ matrix.java }}
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ${{ env.REGISTRY }}
+        if: ${{ matrix.java && (github.event_name != 'pull_request') }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          # For Docker Hub, use:
+          # username: ${{ secrets.DOCKERHUB_USERNAME }}
+          # password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        if: ${{ matrix.java }}
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=${{ github.run_number }}
+
+      - name: Build and push — ${{ matrix.service }}
+        if: ${{ matrix.java }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' && github.event.inputs.push_image != 'false' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Image digest — ${{ matrix.service }}
+        if: ${{ matrix.java }}
+        run: echo "Pushed ${{ matrix.service }} → ${{ steps.meta.outputs.tags }}"
+
+  # =========================================================================
+  # 3. Build Python/Node service (observability-debug-agent)
+  #    Multi-stage: Node 20 builds React UI, Python 3.12 runs the API
+  # =========================================================================
+  build-python:
+    name: Build observability-debug-agent (Python + React)
+    needs: resolve-matrix
+    runs-on: ubuntu-latest
+    # Only run when observability-debug-agent is in the matrix
+    if: |
+      contains(
+        toJson(fromJson(needs.resolve-matrix.outputs.matrix).include.*.service),
+        'observability-debug-agent'
+      )
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/observability-debug-agent
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=${{ github.run_number }}
+
+      # The Dockerfile is already multi-stage:
+      #   Stage 1 — node:20-alpine  → npm install + npm run build (React UI)
+      #   Stage 2 — python:3.12-slim → pip install + copy app + copy UI dist
+      - name: Build and push — observability-debug-agent
+        uses: docker/build-push-action@v6
+        with:
+          context: microservices/observability-debug-agent
+          file: microservices/observability-debug-agent/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' && github.event.inputs.push_image != 'false' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=observability-debug-agent
+          cache-to: type=gha,mode=max,scope=observability-debug-agent
+
+      - name: Image digest
+        run: echo "Pushed observability-debug-agent → ${{ steps.meta.outputs.tags }}"
+
+  # =========================================================================
+  # 4. Summary — print all pushed image tags
+  # =========================================================================
+  summary:
+    name: Build summary
+    needs: [build-java, build-python]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print summary
+        run: |
+          echo "## Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ecommerce               | ${{ needs.build-java.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| product                 | ${{ needs.build-java.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| images                  | ${{ needs.build-java.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| observability-server    | ${{ needs.build-java.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| observability-debug-agent | ${{ needs.build-python.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Registry: \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Run number tag: \`${{ github.run_number }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "SHA tag: \`sha-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
