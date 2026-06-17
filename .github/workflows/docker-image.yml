@@ -42,4 +42,3 @@ jobs:
           no-cache: true
           tags: |
             sudhavuppalapati/observability-debug-agent:latest
-``
