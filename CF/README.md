@@ -28,6 +28,7 @@ Three stacks are deployed in order. Each stack exports values consumed by the ne
   - `sudhavuppalapati/observability-server:latest`
   - `sudhavuppalapati/observability-debug-agent:latest`
 - IAM permissions to create VPCs, ECS resources, IAM roles, Secrets Manager secrets, and CloudWatch log groups
+- **Permissions boundary policy ARN** if your AWS organization requires one (e.g. `arn:aws:iam::123456789012:policy/MyBoundary`). Pass it as `PermissionsBoundaryArn` — omit the parameter to deploy without a boundary.
 
 ---
 
@@ -43,9 +44,12 @@ aws cloudformation deploy \
     ProjectName=agentic-microservices \
     DockerHubUsername=sudhavuppalapati \
     DockerHubPassword=<your-dockerhub-token> \
+    PermissionsBoundaryArn=arn:aws:iam::<ACCOUNT_ID>:policy/<BoundaryPolicyName> \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```
+
+> Omit `PermissionsBoundaryArn` if your environment does not require a permissions boundary.
 
 Wait for `CREATE_COMPLETE` before proceeding to Step 2.
 
@@ -55,7 +59,9 @@ Wait for `CREATE_COMPLETE` before proceeding to Step 2.
 aws cloudformation deploy \
   --template-file CF/02-microservices.yaml \
   --stack-name agentic-microservices \
-  --parameter-overrides ProjectName=agentic-microservices \
+  --parameter-overrides \
+    ProjectName=agentic-microservices \
+    PermissionsBoundaryArn=arn:aws:iam::<ACCOUNT_ID>:policy/<BoundaryPolicyName> \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```
@@ -69,6 +75,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     ProjectName=agentic-microservices \
     GrafanaAdminPassword=<your-grafana-password> \
+    PermissionsBoundaryArn=arn:aws:iam::<ACCOUNT_ID>:policy/<BoundaryPolicyName> \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```

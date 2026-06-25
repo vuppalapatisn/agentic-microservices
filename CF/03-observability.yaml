@@ -17,6 +17,11 @@ Parameters:
     Default: Admin123!
     Description: Grafana admin password (change before production use).
 
+  PermissionsBoundaryArn:
+    Type: String
+    Description: ARN of the IAM permissions boundary policy (passed for consistency; roles are created in stack 01).
+    Default: ""
+
 # ---------------------------------------------------------------------------
 Resources:
 # ---------------------------------------------------------------------------
