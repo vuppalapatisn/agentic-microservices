@@ -57,13 +57,7 @@ jobs:
         run: |
           SELECTED="${{ github.event.inputs.service }}"
           if [ -z "$SELECTED" ]; then
-            echo 'matrix={"include":[
-              {"service":"ecommerce",                 "context":"microservices/ecommerce",                 "java":true,  "dockerfile":"microservices/ecommerce/Dockerfile"},
-              {"service":"product",                   "context":"microservices/product",                   "java":true,  "dockerfile":"microservices/product/Dockerfile"},
-              {"service":"images",                    "context":"microservices/images",                    "java":true,  "dockerfile":"microservices/images/Dockerfile"},
-              {"service":"observability-server",      "context":"microservices/observability-server",      "java":true,  "dockerfile":"microservices/observability-server/Dockerfile"},
-              {"service":"observability-debug-agent", "context":"microservices/observability-debug-agent", "java":false, "dockerfile":"microservices/observability-debug-agent/Dockerfile"}
-            ]}' >> "$GITHUB_OUTPUT"
+            echo 'matrix={"include":[{"service":"ecommerce","context":"microservices/ecommerce","java":true,"dockerfile":"microservices/ecommerce/Dockerfile"},{"service":"product","context":"microservices/product","java":true,"dockerfile":"microservices/product/Dockerfile"},{"service":"images","context":"microservices/images","java":true,"dockerfile":"microservices/images/Dockerfile"},{"service":"observability-server","context":"microservices/observability-server","java":true,"dockerfile":"microservices/observability-server/Dockerfile"},{"service":"observability-debug-agent","context":"microservices/observability-debug-agent","java":false,"dockerfile":"microservices/observability-debug-agent/Dockerfile"}]}' >> "$GITHUB_OUTPUT"
           else
             # Single service selected via workflow_dispatch
             case "$SELECTED" in
