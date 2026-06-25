@@ -17,7 +17,7 @@ spec:
         - name: dockerhub-registry-secret
       containers:
         - name: ecommerce
-          image: docker.io/vuppalapatisn/ecommerce:latest
+          image: docker.io/sudhavuppalapati/ecommerce:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8090

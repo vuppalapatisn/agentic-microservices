@@ -17,7 +17,7 @@ spec:
         - name: dockerhub-registry-secret
       containers:
         - name: observability-debug-agent
-          image: docker.io/vuppalapatisn/observability-debug-agent:latest
+          image: docker.io/sudhavuppalapati/observability-debug-agent:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:

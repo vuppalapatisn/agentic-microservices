@@ -17,7 +17,7 @@ spec:
         - name: dockerhub-registry-secret
       containers:
         - name: images
-          image: docker.io/vuppalapatisn/images:latest
+          image: docker.io/sudhavuppalapati/images:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8090
