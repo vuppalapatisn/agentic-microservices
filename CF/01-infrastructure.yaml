@@ -22,19 +22,20 @@ Parameters:
     NoEcho: true
     Description: Docker Hub password or personal access token.
 
-  PermissionsBoundaryArn:
+  PermissionsBoundaryPolicyName:
     Type: String
     Description: >
-      ARN of the IAM managed policy to attach as a permissions boundary on every
-      IAM role created by this stack. Required in environments where an org SCP
-      mandates a boundary (e.g. arn:aws:iam::123456789012:policy/MyBoundary).
+      Name (not ARN) of the IAM managed policy to use as a permissions boundary
+      on every IAM role in this stack (e.g. MyOrgBoundaryPolicy).
+      The ARN is constructed automatically as
+      arn:aws:iam::<AccountId>:policy/<name>.
       Leave blank to create roles without a boundary.
     Default: ""
 
 # ---------------------------------------------------------------------------
 Conditions:
 # ---------------------------------------------------------------------------
-  HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
+  HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundaryPolicyName, ""]]
 
 # ---------------------------------------------------------------------------
 Resources:
@@ -323,7 +324,7 @@ Resources:
       RoleName: !Sub ${ProjectName}-ecs-execution-role
       PermissionsBoundary: !If
         - HasPermissionsBoundary
-        - !Ref PermissionsBoundaryArn
+        - !Sub arn:aws:iam::${AWS::AccountId}:policy/${PermissionsBoundaryPolicyName}
         - !Ref AWS::NoValue
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -353,7 +354,7 @@ Resources:
       RoleName: !Sub ${ProjectName}-ecs-task-role
       PermissionsBoundary: !If
         - HasPermissionsBoundary
-        - !Ref PermissionsBoundaryArn
+        - !Sub arn:aws:iam::${AWS::AccountId}:policy/${PermissionsBoundaryPolicyName}
         - !Ref AWS::NoValue
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
