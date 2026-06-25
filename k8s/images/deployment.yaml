@@ -13,10 +13,12 @@ spec:
       labels:
         app: images
     spec:
+      imagePullSecrets:
+        - name: dockerhub-registry-secret
       containers:
         - name: images
-          image: images:v2
-          imagePullPolicy: IfNotPresent
+          image: docker.io/vuppalapatisn/images:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8090
           envFrom:

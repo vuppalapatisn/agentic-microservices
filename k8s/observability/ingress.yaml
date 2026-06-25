@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: observability-ingress
+  namespace: observability
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/group.name: agentic-microservices
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /observability
+            pathType: Prefix
+            backend:
+              service:
+                name: observability-debug-agent
+                port:
+                  number: 8092

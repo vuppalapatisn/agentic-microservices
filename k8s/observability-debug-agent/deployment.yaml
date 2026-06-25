@@ -13,10 +13,12 @@ spec:
       labels:
         app: observability-debug-agent
     spec:
+      imagePullSecrets:
+        - name: dockerhub-registry-secret
       containers:
         - name: observability-debug-agent
-          image: observability-debug-agent:v1
-          imagePullPolicy: IfNotPresent
+          image: docker.io/vuppalapatisn/observability-debug-agent:latest
+          imagePullPolicy: Always
           envFrom:
             - configMapRef:
                 name: observability-debug-agent-config

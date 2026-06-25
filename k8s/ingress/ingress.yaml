@@ -4,29 +4,34 @@ metadata:
   name: ecommerce-ingress
   namespace: ecommerce
   annotations:
-    nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health
+    alb.ingress.kubernetes.io/group.name: agentic-microservices
 spec:
-  ingressClassName: nginx
+  ingressClassName: alb
   rules:
     - http:
         paths:
-          - path: /ecommerceApp(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /ecommerceApp
+            pathType: Prefix
             backend:
               service:
                 name: ecommerce-service
                 port:
                   number: 8090
-          - path: /product(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /product-service
+            pathType: Prefix
             backend:
               service:
                 name: product-service
                 port:
                   number: 8090
-          - path: /images(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /image-service
+            pathType: Prefix
             backend:
               service:
                 name: images-service

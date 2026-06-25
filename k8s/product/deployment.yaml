@@ -13,10 +13,12 @@ spec:
       labels:
         app: product
     spec:
+      imagePullSecrets:
+        - name: dockerhub-registry-secret
       containers:
         - name: product
-          image: product-service:v2
-          imagePullPolicy: IfNotPresent
+          image: docker.io/vuppalapatisn/product:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8090
           envFrom:

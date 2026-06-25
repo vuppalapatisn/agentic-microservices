@@ -13,10 +13,12 @@ spec:
       labels:
         app: observability-server
     spec:
+      imagePullSecrets:
+        - name: dockerhub-registry-secret
       containers:
         - name: observability-server
-          image: observability-server:v1
-          imagePullPolicy: IfNotPresent
+          image: docker.io/vuppalapatisn/observability-server:latest
+          imagePullPolicy: Always
           envFrom:
             - configMapRef:
                 name: observability-server-config
