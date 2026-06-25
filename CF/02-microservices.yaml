@@ -1,0 +1,568 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Stack 2 of 3 — ECS Fargate task definitions and services for the five
+  agentic-microservices application containers: ecommerce, product, images,
+  observability-server, and observability-debug-agent.
+  Depends on outputs from 01-infrastructure.yaml.
+
+# ---------------------------------------------------------------------------
+Parameters:
+# ---------------------------------------------------------------------------
+  ProjectName:
+    Type: String
+    Default: agentic-microservices
+
+# ---------------------------------------------------------------------------
+Resources:
+# ---------------------------------------------------------------------------
+
+  # =========================================================================
+  # ECOMMERCE SERVICE
+  # =========================================================================
+
+  EcommerceSDService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: ecommerce
+      NamespaceId: !ImportValue
+        Fn::Sub: ${ProjectName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  EcommerceTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-ecommerce-tg
+      Port: 8090
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue
+        Fn::Sub: ${ProjectName}-VpcId
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /ecommerce-service/actuator/health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  EcommerceListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ALBListenerArn
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /ecommerceApp*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref EcommerceTG
+
+  EcommerceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-ecommerce
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: ecommerce
+          Image: sudhavuppalapati/ecommerce:latest
+          RepositoryCredentials:
+            CredentialsParameter: !ImportValue
+              Fn::Sub: ${ProjectName}-DockerHubSecretArn
+          PortMappings:
+            - ContainerPort: 8090
+              Protocol: tcp
+          Environment:
+            - Name: PRODUCT_SERVICE_URL
+              Value: !Sub http://product.${ProjectName}.local:8090
+            - Name: IMAGES_SERVICE_URL
+              Value: !Sub http://images.${ProjectName}.local:8090
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${ProjectName}/ecommerce
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Essential: true
+
+  EcommerceService:
+    Type: AWS::ECS::Service
+    DependsOn: EcommerceListenerRule
+    Properties:
+      ServiceName: !Sub ${ProjectName}-ecommerce
+      Cluster: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSClusterName
+      TaskDefinition: !Ref EcommerceTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet2Id
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-ECSSecurityGroupId
+      LoadBalancers:
+        - ContainerName: ecommerce
+          ContainerPort: 8090
+          TargetGroupArn: !Ref EcommerceTG
+      ServiceRegistries:
+        - RegistryArn: !GetAtt EcommerceSDService.Arn
+          Port: 8090
+
+  # =========================================================================
+  # PRODUCT SERVICE
+  # =========================================================================
+
+  ProductSDService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: product
+      NamespaceId: !ImportValue
+        Fn::Sub: ${ProjectName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  ProductTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-product-tg
+      Port: 8090
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue
+        Fn::Sub: ${ProjectName}-VpcId
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /product-service/actuator/health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  ProductListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ALBListenerArn
+      Priority: 20
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /product-service*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ProductTG
+
+  ProductTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-product
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: product
+          Image: sudhavuppalapati/product:latest
+          RepositoryCredentials:
+            CredentialsParameter: !ImportValue
+              Fn::Sub: ${ProjectName}-DockerHubSecretArn
+          PortMappings:
+            - ContainerPort: 8090
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${ProjectName}/product
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Essential: true
+
+  ProductService:
+    Type: AWS::ECS::Service
+    DependsOn: ProductListenerRule
+    Properties:
+      ServiceName: !Sub ${ProjectName}-product
+      Cluster: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSClusterName
+      TaskDefinition: !Ref ProductTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet2Id
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-ECSSecurityGroupId
+      LoadBalancers:
+        - ContainerName: product
+          ContainerPort: 8090
+          TargetGroupArn: !Ref ProductTG
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ProductSDService.Arn
+          Port: 8090
+
+  # =========================================================================
+  # IMAGES SERVICE
+  # =========================================================================
+
+  ImagesSDService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: images
+      NamespaceId: !ImportValue
+        Fn::Sub: ${ProjectName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  ImagesTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-images-tg
+      Port: 8090
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue
+        Fn::Sub: ${ProjectName}-VpcId
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /image-service/actuator/health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  ImagesListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ALBListenerArn
+      Priority: 30
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /image-service*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ImagesTG
+
+  ImagesTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-images
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: images
+          Image: sudhavuppalapati/images:latest
+          RepositoryCredentials:
+            CredentialsParameter: !ImportValue
+              Fn::Sub: ${ProjectName}-DockerHubSecretArn
+          PortMappings:
+            - ContainerPort: 8090
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${ProjectName}/images
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Essential: true
+
+  ImagesService:
+    Type: AWS::ECS::Service
+    DependsOn: ImagesListenerRule
+    Properties:
+      ServiceName: !Sub ${ProjectName}-images
+      Cluster: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSClusterName
+      TaskDefinition: !Ref ImagesTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet2Id
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-ECSSecurityGroupId
+      LoadBalancers:
+        - ContainerName: images
+          ContainerPort: 8090
+          TargetGroupArn: !Ref ImagesTG
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ImagesSDService.Arn
+          Port: 8090
+
+  # =========================================================================
+  # OBSERVABILITY SERVER
+  # =========================================================================
+
+  ObsServerSDService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: observability-server
+      NamespaceId: !ImportValue
+        Fn::Sub: ${ProjectName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  ObsServerTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-obs-server-tg
+      Port: 8091
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue
+        Fn::Sub: ${ProjectName}-VpcId
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /actuator/health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  ObsServerListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ALBListenerArn
+      Priority: 40
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /actuator*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ObsServerTG
+
+  ObsServerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-observability-server
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: observability-server
+          Image: sudhavuppalapati/observability-server:latest
+          RepositoryCredentials:
+            CredentialsParameter: !ImportValue
+              Fn::Sub: ${ProjectName}-DockerHubSecretArn
+          PortMappings:
+            - ContainerPort: 8091
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${ProjectName}/observability-server
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Essential: true
+
+  ObsServerService:
+    Type: AWS::ECS::Service
+    DependsOn: ObsServerListenerRule
+    Properties:
+      ServiceName: !Sub ${ProjectName}-observability-server
+      Cluster: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSClusterName
+      TaskDefinition: !Ref ObsServerTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet2Id
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-ECSSecurityGroupId
+      LoadBalancers:
+        - ContainerName: observability-server
+          ContainerPort: 8091
+          TargetGroupArn: !Ref ObsServerTG
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ObsServerSDService.Arn
+          Port: 8091
+
+  # =========================================================================
+  # OBSERVABILITY DEBUG AGENT (Python / FastAPI)
+  # =========================================================================
+
+  ObsAgentSDService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: observability-debug-agent
+      NamespaceId: !ImportValue
+        Fn::Sub: ${ProjectName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  ObsAgentTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-obs-agent-tg
+      Port: 8092
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue
+        Fn::Sub: ${ProjectName}-VpcId
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  ObsAgentListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ALBListenerArn
+      Priority: 50
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /observability*
+            - /health
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ObsAgentTG
+
+  ObsAgentTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-observability-debug-agent
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: observability-debug-agent
+          Image: sudhavuppalapati/observability-debug-agent:latest
+          RepositoryCredentials:
+            CredentialsParameter: !ImportValue
+              Fn::Sub: ${ProjectName}-DockerHubSecretArn
+          PortMappings:
+            - ContainerPort: 8092
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${ProjectName}/observability-debug-agent
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Essential: true
+
+  ObsAgentService:
+    Type: AWS::ECS::Service
+    DependsOn: ObsAgentListenerRule
+    Properties:
+      ServiceName: !Sub ${ProjectName}-observability-debug-agent
+      Cluster: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSClusterName
+      TaskDefinition: !Ref ObsAgentTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet2Id
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-ECSSecurityGroupId
+      LoadBalancers:
+        - ContainerName: observability-debug-agent
+          ContainerPort: 8092
+          TargetGroupArn: !Ref ObsAgentTG
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ObsAgentSDService.Arn
+          Port: 8092

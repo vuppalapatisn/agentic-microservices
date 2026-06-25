@@ -1,0 +1,420 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Stack 3 of 3 — Prometheus, Grafana, and Loki on ECS Fargate with ALB routing
+  and Cloud Map service discovery for the agentic-microservices observability stack.
+  Depends on outputs from 01-infrastructure.yaml.
+
+# ---------------------------------------------------------------------------
+Parameters:
+# ---------------------------------------------------------------------------
+  ProjectName:
+    Type: String
+    Default: agentic-microservices
+
+  GrafanaAdminPassword:
+    Type: String
+    NoEcho: true
+    Default: Admin123!
+    Description: Grafana admin password (change before production use).
+
+# ---------------------------------------------------------------------------
+Resources:
+# ---------------------------------------------------------------------------
+
+  # =========================================================================
+  # PROMETHEUS
+  # =========================================================================
+
+  PrometheusSDService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: prometheus
+      NamespaceId: !ImportValue
+        Fn::Sub: ${ProjectName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  PrometheusTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-prometheus-tg
+      Port: 9090
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue
+        Fn::Sub: ${ProjectName}-VpcId
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /-/healthy
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  PrometheusListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ALBListenerArn
+      Priority: 60
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /prometheus*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref PrometheusTG
+
+  PrometheusTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-prometheus
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: prometheus
+          Image: prom/prometheus:latest
+          # Write the config file from an env var then launch prometheus.
+          # This avoids the need for a volume mount on Fargate.
+          EntryPoint:
+            - sh
+            - -c
+          Command:
+            - >-
+              echo "$PROMETHEUS_YML" > /etc/prometheus/prometheus.yml &&
+              prometheus
+              --config.file=/etc/prometheus/prometheus.yml
+              --storage.tsdb.path=/prometheus
+              --web.console.libraries=/usr/share/prometheus/console_libraries
+              --web.console.templates=/usr/share/prometheus/consoles
+              --web.enable-lifecycle
+          Environment:
+            - Name: PROMETHEUS_YML
+              Value: !Sub |
+                global:
+                  scrape_interval: 15s
+                  evaluation_interval: 15s
+
+                scrape_configs:
+                  - job_name: 'ecommerce'
+                    metrics_path: /ecommerce-service/actuator/prometheus
+                    static_configs:
+                      - targets:
+                          - ecommerce.${ProjectName}.local:8090
+
+                  - job_name: 'product'
+                    metrics_path: /product-service/actuator/prometheus
+                    static_configs:
+                      - targets:
+                          - product.${ProjectName}.local:8090
+
+                  - job_name: 'images'
+                    metrics_path: /image-service/actuator/prometheus
+                    static_configs:
+                      - targets:
+                          - images.${ProjectName}.local:8090
+          PortMappings:
+            - ContainerPort: 9090
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${ProjectName}/prometheus
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Essential: true
+
+  PrometheusService:
+    Type: AWS::ECS::Service
+    DependsOn: PrometheusListenerRule
+    Properties:
+      ServiceName: !Sub ${ProjectName}-prometheus
+      Cluster: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSClusterName
+      TaskDefinition: !Ref PrometheusTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet2Id
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-ECSSecurityGroupId
+      LoadBalancers:
+        - ContainerName: prometheus
+          ContainerPort: 9090
+          TargetGroupArn: !Ref PrometheusTG
+      ServiceRegistries:
+        - RegistryArn: !GetAtt PrometheusSDService.Arn
+          Port: 9090
+
+  # =========================================================================
+  # GRAFANA
+  # =========================================================================
+
+  GrafanaSDService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: grafana
+      NamespaceId: !ImportValue
+        Fn::Sub: ${ProjectName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  GrafanaTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-grafana-tg
+      Port: 3000
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue
+        Fn::Sub: ${ProjectName}-VpcId
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /api/health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  GrafanaListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ALBListenerArn
+      Priority: 70
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /grafana*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref GrafanaTG
+
+  GrafanaTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-grafana
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: grafana
+          Image: grafana/grafana:latest
+          PortMappings:
+            - ContainerPort: 3000
+              Protocol: tcp
+          Environment:
+            - Name: GF_SECURITY_ADMIN_PASSWORD
+              Value: !Ref GrafanaAdminPassword
+            - Name: GF_SECURITY_ADMIN_USER
+              Value: admin
+            - Name: GF_SERVER_ROOT_URL
+              Value: "%(protocol)s://%(domain)s/grafana"
+            - Name: GF_SERVER_SERVE_FROM_SUB_PATH
+              Value: "true"
+            - Name: GF_DATASOURCES_DEFAULT_TYPE
+              Value: prometheus
+            - Name: GF_DATASOURCES_DEFAULT_URL
+              Value: !Sub http://prometheus.${ProjectName}.local:9090
+            - Name: GF_DATASOURCES_LOKI_TYPE
+              Value: loki
+            - Name: GF_DATASOURCES_LOKI_URL
+              Value: !Sub http://loki.${ProjectName}.local:3100
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${ProjectName}/grafana
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Essential: true
+
+  GrafanaService:
+    Type: AWS::ECS::Service
+    DependsOn: GrafanaListenerRule
+    Properties:
+      ServiceName: !Sub ${ProjectName}-grafana
+      Cluster: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSClusterName
+      TaskDefinition: !Ref GrafanaTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet2Id
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-ECSSecurityGroupId
+      LoadBalancers:
+        - ContainerName: grafana
+          ContainerPort: 3000
+          TargetGroupArn: !Ref GrafanaTG
+      ServiceRegistries:
+        - RegistryArn: !GetAtt GrafanaSDService.Arn
+          Port: 3000
+
+  # =========================================================================
+  # LOKI
+  # =========================================================================
+
+  LokiSDService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: loki
+      NamespaceId: !ImportValue
+        Fn::Sub: ${ProjectName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  LokiTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-loki-tg
+      Port: 3100
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue
+        Fn::Sub: ${ProjectName}-VpcId
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /ready
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  LokiListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ALBListenerArn
+      Priority: 80
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /loki*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref LokiTG
+
+  LokiTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-loki
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: loki
+          Image: grafana/loki:latest
+          Command:
+            - -config.file=/etc/loki/local-config.yaml
+          PortMappings:
+            - ContainerPort: 3100
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${ProjectName}/loki
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Essential: true
+
+  LokiService:
+    Type: AWS::ECS::Service
+    DependsOn: LokiListenerRule
+    Properties:
+      ServiceName: !Sub ${ProjectName}-loki
+      Cluster: !ImportValue
+        Fn::Sub: ${ProjectName}-ECSClusterName
+      TaskDefinition: !Ref LokiTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-PrivateSubnet2Id
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${ProjectName}-ECSSecurityGroupId
+      LoadBalancers:
+        - ContainerName: loki
+          ContainerPort: 3100
+          TargetGroupArn: !Ref LokiTG
+      ServiceRegistries:
+        - RegistryArn: !GetAtt LokiSDService.Arn
+          Port: 3100
+
+# ---------------------------------------------------------------------------
+Outputs:
+# ---------------------------------------------------------------------------
+
+  PrometheusURL:
+    Description: Public URL for Prometheus UI
+    Value: !Sub
+      - "http://${ALBDns}/prometheus"
+      - ALBDns: !ImportValue
+          Fn::Sub: ${ProjectName}-ALBDNSName
+
+  GrafanaURL:
+    Description: Public URL for Grafana UI
+    Value: !Sub
+      - "http://${ALBDns}/grafana"
+      - ALBDns: !ImportValue
+          Fn::Sub: ${ProjectName}-ALBDNSName
+
+  LokiURL:
+    Description: Internal Loki push endpoint (used by log shippers inside the VPC)
+    Value: !Sub http://loki.${ProjectName}.local:3100
