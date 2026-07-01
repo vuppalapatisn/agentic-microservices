@@ -7,6 +7,36 @@ No resources found in observability namespace.
 Captured: 2026-07-01 21:16:59 IST
 kubectl context: `mycluster-in-che-1-cxf.4x8/d92fbhuh0h54olrrmsfg`
 
+## Analysis
+
+**Root cause: nothing was deployed to this cluster yet.** Both
+`kubectl get pods -n ecommerce` and `kubectl get pods -n observability`
+returned "No resources found" (see section 2 below) — zero pods and zero
+services existed in either namespace at capture time. That is why every
+`kubectl port-forward` to `product-service` / `images-service` /
+`ecommerce-service` / `observability-server` failed to bind, and every curl
+against `localhost:8081`/`8082`/`8083`/`8091` failed with
+`Couldn't connect to server`.
+
+This is **not** a "localhost isn't reachable from a Mac" problem —
+`kubectl port-forward` tunnels through the Kubernetes API server, so
+`localhost:<port>` on a Mac correctly reaches a pod on a remote IBM Cloud
+cluster with no public URL required. The fix is to actually deploy first:
+run `./deploy-ibm-cloud.sh`, then the manual `kubectl apply` /
+`kubectl set image` / `kubectl rollout status` steps in
+[run.md](run.md) (steps 8-10), then re-run `./capture-test-results.sh`.
+
+**Caveat on the "successful" results below**: the responses for
+`observability-debug-agent health` (port 8092), `Prometheus readiness`
+(port 9090), and `Grafana health` (port 3000) look like real, healthy
+responses — but since `observability` namespace had zero pods, these
+cannot have come from this cluster's port-forwards (which would have failed
+to bind, same as the others). They most likely came from some other
+process already listening on those ports on the local Mac (e.g. a leftover
+local Grafana/Prometheus, or a stale port-forward/container from an
+earlier local `start.sh` run). Verify with `lsof -i :3000`, `lsof -i :9090`,
+`lsof -i :8092` on the Mac before trusting these as cluster results.
+
 ## 1. Unit tests (Java services)
 
 **mvn test - product**
