@@ -109,7 +109,14 @@ jobs:
       - name: Log in to IBM Cloud & configure kubectl
         run: |
           ibmcloud login --apikey "${{ secrets.IBM_CLOUD_API_KEY }}" -r "${{ env.IBM_CLOUD_REGION }}"
-          ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}"
+          OUTPUT=$(ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}")
+          echo "$OUTPUT"
+          KCPATH=$(echo "$OUTPUT" | grep -oE '/[^ ]*kube-config[^ ]*\.yml')
+          if [ -z "$KCPATH" ]; then
+            echo "::error::Could not find kubeconfig path in ibmcloud output above"
+            exit 1
+          fi
+          echo "KUBECONFIG=$KCPATH" >> "$GITHUB_ENV"
 
       - name: Apply namespaces
         run: |
