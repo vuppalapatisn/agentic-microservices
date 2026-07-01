@@ -71,7 +71,15 @@ jobs:
         run: ibmcloud cr namespace-add ${{ env.ICR_NAMESPACE }} || echo "Namespace may already exist, continuing."
 
       - name: Configure kubectl for the IKS cluster
-        run: ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}"
+        run: |
+          OUTPUT=$(ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}")
+          echo "$OUTPUT"
+          KCPATH=$(echo "$OUTPUT" | grep -oE '/[^ ]*kube-config[^ ]*\.yml')
+          if [ -z "$KCPATH" ]; then
+            echo "::error::Could not find kubeconfig path in ibmcloud output above"
+            exit 1
+          fi
+          echo "KUBECONFIG=$KCPATH" >> "$GITHUB_ENV"
 
       - name: Build & push observability-server
         working-directory: microservices/observability-server
