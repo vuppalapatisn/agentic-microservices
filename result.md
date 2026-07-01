@@ -1,5 +1,9 @@
 # Test Results
+$ kubectl get pods -n ecommerce
+No resources found in ecommerce namespace.
 
+$ kubectl get pods -n observability
+No resources found in observability namespace.
 Captured: 2026-07-01 21:16:59 IST
 kubectl context: `mycluster-in-che-1-cxf.4x8/d92fbhuh0h54olrrmsfg`
 
