@@ -33,8 +33,8 @@ on:
 env:
   DOCKERHUB_NAMESPACE: sudhavuppalapati
   IKS_CLUSTER_ID: d92fbhuh0h54olrrmsfg
-  # Verify with `ibmcloud regions` if the cluster ever moves.
-  IBM_CLOUD_REGION: che01
+  # Chennai, India. Verify with `ibmcloud regions` if the cluster ever moves.
+  IBM_CLOUD_REGION: in-che
 
 jobs:
   build-push-prep:
