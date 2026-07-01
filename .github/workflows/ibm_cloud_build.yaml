@@ -1,21 +1,27 @@
-name: IBM Cloud - Build, Push & Prepare Cluster
+name: IBM Cloud - Build, Push & Deploy
 
 # ---------------------------------------------------------------------------
-# Automates the build_and_push + cluster-prep portion of deploy-ibm-cloud.sh:
+# Full equivalent of deploy-ibm-cloud.sh, run in CI instead of locally:
 #   - build each service with Maven, docker build, docker push
 #   - point kubectl at the IBM Cloud Kubernetes Service (IKS) cluster
 #   - apply the ecommerce/observability namespaces
 #   - warn if the dockerhub-registry-secret pull secret is missing
-#
-# The remaining steps from deploy-ibm-cloud.sh (kubectl apply of the service
-# manifests, kubectl set image, rollout status) are intentionally left to be
-# run locally — see the job summary this workflow prints for the exact
-# commands and image tag to use.
+#   - apply the service manifests (product, images, ecommerce, ingress,
+#     the observability stack, observability-server, observability-debug-agent)
+#   - kubectl set image each deployment to the freshly pushed tag
+#   - wait on kubectl rollout status for every deployment
+#   - print final pod/service/ingress status to the job summary
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   DOCKER_USERNAME     Docker Hub username (same secret used by docker_build.yaml)
 #   DOCKER_PASSWORD     Docker Hub access token (same secret used by docker_build.yaml)
 #   IBM_CLOUD_API_KEY   IBM Cloud IAM API key with access to the target cluster
+#
+# Prerequisite (one-time, not automated here): the dockerhub-registry-secret
+# image pull secret must already exist in both the ecommerce and
+# observability namespaces — see k8s/dockerhub-secret.yaml for the exact
+# kubectl create secret command. Without it, pods will sit in
+# ImagePullBackOff and the rollout status steps below will time out.
 # ---------------------------------------------------------------------------
 
 on:
@@ -37,8 +43,8 @@ env:
   IBM_CLOUD_REGION: in-che
 
 jobs:
-  build-push-prep:
-    name: Build, push images & prepare IBM Cloud cluster
+  build-push-deploy:
+    name: Build, push images & deploy to IBM Cloud
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -118,37 +124,67 @@ jobs:
             fi
           done
 
+      - name: Apply application manifests
+        run: |
+          kubectl apply -f k8s/product
+          kubectl apply -f k8s/images
+          kubectl apply -f k8s/ecommerce
+          kubectl apply -f k8s/ingress
+
+      - name: Apply observability stack manifests
+        run: |
+          kubectl apply -f k8s/observability/prometheus
+          kubectl apply -f k8s/observability/loki
+          kubectl apply -f k8s/observability/promtail
+          kubectl apply -f k8s/observability/grafana
+          kubectl apply -f k8s/observability-server
+          kubectl apply -f k8s/observability-debug-agent/configmap.yaml
+          kubectl apply -f k8s/observability-debug-agent/deployment.yaml
+          kubectl apply -f k8s/observability-debug-agent/service.yaml
+
+      - name: Roll out pushed image tag
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          NS="${{ env.DOCKERHUB_NAMESPACE }}"
+          kubectl set image deployment/product product=docker.io/$NS/product:$TAG -n ecommerce
+          kubectl set image deployment/images images=docker.io/$NS/images:$TAG -n ecommerce
+          kubectl set image deployment/ecommerce ecommerce=docker.io/$NS/ecommerce:$TAG -n ecommerce
+          kubectl set image deployment/observability-server observability-server=docker.io/$NS/observability-server:$TAG -n observability
+          kubectl set image deployment/observability-debug-agent observability-debug-agent=docker.io/$NS/observability-debug-agent:$TAG -n observability
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/product -n ecommerce --timeout=300s
+          kubectl rollout status deployment/images -n ecommerce --timeout=300s
+          kubectl rollout status deployment/ecommerce -n ecommerce --timeout=300s
+          kubectl rollout status deployment/prometheus -n observability --timeout=300s
+          kubectl rollout status deployment/loki -n observability --timeout=300s
+          kubectl rollout status deployment/grafana -n observability --timeout=300s
+          kubectl rollout status deployment/observability-server -n observability --timeout=300s
+          kubectl rollout status deployment/observability-debug-agent -n observability --timeout=300s
+
       - name: Summary
+        if: always()
         run: |
           {
-            echo "## IBM Cloud build & prep complete"
+            echo "## IBM Cloud deployment"
             echo ""
-            echo "Image tag pushed to Docker Hub: \`${{ steps.tag.outputs.tag }}\`"
+            echo "Image tag: \`${{ steps.tag.outputs.tag }}\`"
             echo ""
-            echo "Run the rest locally to finish the rollout:"
-            echo '```bash'
-            echo "IMAGE_TAG=${{ steps.tag.outputs.tag }}"
-            echo "kubectl apply -f k8s/product"
-            echo "kubectl apply -f k8s/images"
-            echo "kubectl apply -f k8s/ecommerce"
-            echo "kubectl apply -f k8s/ingress"
-            echo "kubectl apply -f k8s/observability/prometheus"
-            echo "kubectl apply -f k8s/observability/loki"
-            echo "kubectl apply -f k8s/observability/promtail"
-            echo "kubectl apply -f k8s/observability/grafana"
-            echo "kubectl apply -f k8s/observability-server"
-            echo "kubectl apply -f k8s/observability-debug-agent/configmap.yaml"
-            echo "kubectl apply -f k8s/observability-debug-agent/deployment.yaml"
-            echo "kubectl apply -f k8s/observability-debug-agent/service.yaml"
-            echo "kubectl set image deployment/product product=docker.io/${{ env.DOCKERHUB_NAMESPACE }}/product:\$IMAGE_TAG -n ecommerce"
-            echo "kubectl set image deployment/images images=docker.io/${{ env.DOCKERHUB_NAMESPACE }}/images:\$IMAGE_TAG -n ecommerce"
-            echo "kubectl set image deployment/ecommerce ecommerce=docker.io/${{ env.DOCKERHUB_NAMESPACE }}/ecommerce:\$IMAGE_TAG -n ecommerce"
-            echo "kubectl set image deployment/observability-server observability-server=docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-server:\$IMAGE_TAG -n observability"
-            echo "kubectl set image deployment/observability-debug-agent observability-debug-agent=docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-debug-agent:\$IMAGE_TAG -n observability"
-            echo "kubectl rollout status deployment/product -n ecommerce"
-            echo "kubectl rollout status deployment/images -n ecommerce"
-            echo "kubectl rollout status deployment/ecommerce -n ecommerce"
-            echo "kubectl rollout status deployment/observability-server -n observability"
-            echo "kubectl rollout status deployment/observability-debug-agent -n observability"
+            echo "### Pods (ecommerce)"
+            echo '```'
+            kubectl get pods -n ecommerce
+            echo '```'
+            echo "### Pods (observability)"
+            echo '```'
+            kubectl get pods -n observability
+            echo '```'
+            echo "### Services (ecommerce)"
+            echo '```'
+            kubectl get svc -n ecommerce
+            echo '```'
+            echo "### Ingress (ecommerce)"
+            echo '```'
+            kubectl get ingress -n ecommerce
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

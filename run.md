@@ -141,18 +141,23 @@ Once steps 1-7 are done once, just re-run:
 
 It rebuilds, re-pushes, and rolls out fresh images every time.
 
-## Optional: automate the build/push/prep step with GitHub Actions
+## Optional: deploy entirely from GitHub Actions
 
 [.github/workflows/ibm_cloud_build.yaml](.github/workflows/ibm_cloud_build.yaml)
-automates steps 3-6 above (Maven build, `docker build`, `docker push` for all
-five services) plus the cluster-prep steps (`ibmcloud ks cluster config`,
-applying the two namespaces, warning if the pull secret is missing). It runs
-on every push to `master`/`main` and can also be triggered manually from the
-GitHub Actions tab.
+is the full equivalent of steps 3-10 above, run in CI instead of on your Mac:
+Maven build + `docker build` + `docker push` for all five services,
+`ibmcloud ks cluster config`, applying the two namespaces, warning if the
+pull secret is missing, applying every service/ingress/observability
+manifest, `kubectl set image` to the freshly pushed tag, and waiting on
+`kubectl rollout status` for every deployment. It runs on every push to
+`master`/`main` and can also be triggered manually from the GitHub Actions
+tab (Actions -> "IBM Cloud - Build, Push & Deploy" -> Run workflow). The job
+summary shows the final pod/service/ingress status.
 
-It deliberately stops short of deploying the service manifests — that part
-still runs locally (steps 8-10 above), using the image tag the workflow
-printed in its job summary.
+This still requires the one-time steps 5-6 above (create the namespaces and
+the `dockerhub-registry-secret` pull secret) to have already been done
+against the cluster at least once — the workflow re-applies the namespaces
+but does not create the pull secret for you.
 
 Required repository secrets (Settings -> Secrets and variables -> Actions in
 GitHub — never commit these values):
