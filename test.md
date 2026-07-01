@@ -5,6 +5,17 @@ Kubernetes Service deployment (`./deploy-ibm-cloud.sh` + the manual rollout
 steps in [run.md](run.md)). Commands are the same either way except for how
 you reach the services (see "Reaching the services" below).
 
+To run all of the commands below in one shot and capture the real output to
+`result.md`, use [capture-test-results.sh](capture-test-results.sh):
+
+```bash
+./capture-test-results.sh
+```
+
+It runs against whatever cluster your current `kubectl` context points to,
+writes `result.md` in the repo root, and cleans up its port-forwards on
+exit. Review `result.md` before committing it.
+
 ## 1. Unit tests (Java services)
 
 Run before/independent of any deployment — these don't need a cluster.
