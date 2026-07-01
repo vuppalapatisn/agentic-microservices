@@ -1,0 +1,154 @@
+name: IBM Cloud - Build, Push & Prepare Cluster
+
+# ---------------------------------------------------------------------------
+# Automates the build_and_push + cluster-prep portion of deploy-ibm-cloud.sh:
+#   - build each service with Maven, docker build, docker push
+#   - point kubectl at the IBM Cloud Kubernetes Service (IKS) cluster
+#   - apply the ecommerce/observability namespaces
+#   - warn if the dockerhub-registry-secret pull secret is missing
+#
+# The remaining steps from deploy-ibm-cloud.sh (kubectl apply of the service
+# manifests, kubectl set image, rollout status) are intentionally left to be
+# run locally — see the job summary this workflow prints for the exact
+# commands and image tag to use.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   DOCKER_USERNAME     Docker Hub username (same secret used by docker_build.yaml)
+#   DOCKER_PASSWORD     Docker Hub access token (same secret used by docker_build.yaml)
+#   IBM_CLOUD_API_KEY   IBM Cloud IAM API key with access to the target cluster
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "microservices/**"
+      - "k8s/namespace.yaml"
+      - "k8s/observability/namespace.yaml"
+      - ".github/workflows/ibm_cloud_build.yaml"
+  workflow_dispatch: {}
+
+env:
+  DOCKERHUB_NAMESPACE: sudhavuppalapati
+  IKS_CLUSTER_ID: d92fbhuh0h54olrrmsfg
+  # Verify with `ibmcloud regions` if the cluster ever moves.
+  IBM_CLOUD_REGION: che01
+
+jobs:
+  build-push-prep:
+    name: Build, push images & prepare IBM Cloud cluster
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Set image tag
+        id: tag
+        run: echo "tag=$(date +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build & push observability-server
+        working-directory: microservices/observability-server
+        run: |
+          mvn clean package
+          docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-server:${{ steps.tag.outputs.tag }} .
+          docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-server:${{ steps.tag.outputs.tag }}
+
+      - name: Build & push observability-debug-agent
+        working-directory: microservices/observability-debug-agent
+        run: |
+          docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-debug-agent:${{ steps.tag.outputs.tag }} .
+          docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-debug-agent:${{ steps.tag.outputs.tag }}
+
+      - name: Build & push product
+        working-directory: microservices/product
+        run: |
+          mvn clean package
+          docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/product:${{ steps.tag.outputs.tag }} .
+          docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/product:${{ steps.tag.outputs.tag }}
+
+      - name: Build & push images
+        working-directory: microservices/images
+        run: |
+          mvn clean package
+          docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/images:${{ steps.tag.outputs.tag }} .
+          docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/images:${{ steps.tag.outputs.tag }}
+
+      - name: Build & push ecommerce
+        working-directory: microservices/ecommerce
+        run: |
+          mvn clean package
+          docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/ecommerce:${{ steps.tag.outputs.tag }} .
+          docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/ecommerce:${{ steps.tag.outputs.tag }}
+
+      - name: Install IBM Cloud CLI
+        run: |
+          curl -fsSL https://clis.cloud.ibm.com/install/linux | sh
+          ibmcloud plugin install kubernetes-service -f
+
+      - name: Log in to IBM Cloud & configure kubectl
+        run: |
+          ibmcloud login --apikey "${{ secrets.IBM_CLOUD_API_KEY }}" -r "${{ env.IBM_CLOUD_REGION }}"
+          ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}"
+
+      - name: Apply namespaces
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/observability/namespace.yaml
+
+      - name: Check image pull secret exists
+        run: |
+          for ns in ecommerce observability; do
+            if ! kubectl get secret dockerhub-registry-secret -n "$ns" >/dev/null 2>&1; then
+              echo "::warning::secret 'dockerhub-registry-secret' not found in namespace '$ns'. Pods will fail to pull images (ImagePullBackOff) until you create it — see k8s/dockerhub-secret.yaml."
+            fi
+          done
+
+      - name: Summary
+        run: |
+          {
+            echo "## IBM Cloud build & prep complete"
+            echo ""
+            echo "Image tag pushed to Docker Hub: \`${{ steps.tag.outputs.tag }}\`"
+            echo ""
+            echo "Run the rest locally to finish the rollout:"
+            echo '```bash'
+            echo "IMAGE_TAG=${{ steps.tag.outputs.tag }}"
+            echo "kubectl apply -f k8s/product"
+            echo "kubectl apply -f k8s/images"
+            echo "kubectl apply -f k8s/ecommerce"
+            echo "kubectl apply -f k8s/ingress"
+            echo "kubectl apply -f k8s/observability/prometheus"
+            echo "kubectl apply -f k8s/observability/loki"
+            echo "kubectl apply -f k8s/observability/promtail"
+            echo "kubectl apply -f k8s/observability/grafana"
+            echo "kubectl apply -f k8s/observability-server"
+            echo "kubectl apply -f k8s/observability-debug-agent/configmap.yaml"
+            echo "kubectl apply -f k8s/observability-debug-agent/deployment.yaml"
+            echo "kubectl apply -f k8s/observability-debug-agent/service.yaml"
+            echo "kubectl set image deployment/product product=docker.io/${{ env.DOCKERHUB_NAMESPACE }}/product:\$IMAGE_TAG -n ecommerce"
+            echo "kubectl set image deployment/images images=docker.io/${{ env.DOCKERHUB_NAMESPACE }}/images:\$IMAGE_TAG -n ecommerce"
+            echo "kubectl set image deployment/ecommerce ecommerce=docker.io/${{ env.DOCKERHUB_NAMESPACE }}/ecommerce:\$IMAGE_TAG -n ecommerce"
+            echo "kubectl set image deployment/observability-server observability-server=docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-server:\$IMAGE_TAG -n observability"
+            echo "kubectl set image deployment/observability-debug-agent observability-debug-agent=docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-debug-agent:\$IMAGE_TAG -n observability"
+            echo "kubectl rollout status deployment/product -n ecommerce"
+            echo "kubectl rollout status deployment/images -n ecommerce"
+            echo "kubectl rollout status deployment/ecommerce -n ecommerce"
+            echo "kubectl rollout status deployment/observability-server -n observability"
+            echo "kubectl rollout status deployment/observability-debug-agent -n observability"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

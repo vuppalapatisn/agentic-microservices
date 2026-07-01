@@ -141,6 +141,31 @@ Once steps 1-7 are done once, just re-run:
 
 It rebuilds, re-pushes, and rolls out fresh images every time.
 
+## Optional: automate the build/push/prep step with GitHub Actions
+
+[.github/workflows/ibm_cloud_build.yaml](.github/workflows/ibm_cloud_build.yaml)
+automates steps 3-6 above (Maven build, `docker build`, `docker push` for all
+five services) plus the cluster-prep steps (`ibmcloud ks cluster config`,
+applying the two namespaces, warning if the pull secret is missing). It runs
+on every push to `master`/`main` and can also be triggered manually from the
+GitHub Actions tab.
+
+It deliberately stops short of deploying the service manifests — that part
+still runs locally (steps 8-10 above), using the image tag the workflow
+printed in its job summary.
+
+Required repository secrets (Settings -> Secrets and variables -> Actions in
+GitHub — never commit these values):
+
+- `DOCKER_USERNAME` / `DOCKER_PASSWORD` — same Docker Hub credentials used by
+  the existing `docker_build.yaml` workflow
+- `IBM_CLOUD_API_KEY` — an IBM Cloud IAM API key with access to the target
+  cluster (create one with `ibmcloud iam api-key-create`)
+
+After a workflow run finishes, open its Summary tab for the exact
+`kubectl apply` / `kubectl set image` / `kubectl rollout status` commands to
+run locally, with the pushed image tag already filled in.
+
 ## Local development (no IBM Cloud)
 
 For local iteration against Docker Desktop's built-in Kubernetes cluster
