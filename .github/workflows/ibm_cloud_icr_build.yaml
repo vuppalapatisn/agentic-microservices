@@ -32,7 +32,7 @@ on:
 env:
   ICR_REGISTRY: icr.io
   ICR_NAMESPACE: agentic
-  IKS_CLUSTER_ID: d92fbhuh0h54olrrmsfg
+  IKS_CLUSTER_ID: d93v66vh0iiqv4s5rms0
   # Chennai, India. Verify with `ibmcloud regions` if the cluster ever moves.
   IBM_CLOUD_REGION: in-che
 

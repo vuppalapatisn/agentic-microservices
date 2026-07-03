@@ -24,7 +24,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE_TAG="$(date +%Y%m%d%H%M%S)"
 ICR_REGISTRY="${ICR_REGISTRY:-icr.io}"
 ICR_NAMESPACE="${ICR_NAMESPACE:-agentic}"
-IKS_CLUSTER_ID="${IKS_CLUSTER_ID:-d92fbhuh0h54olrrmsfg}"
+IKS_CLUSTER_ID="${IKS_CLUSTER_ID:-d93v66vh0iiqv4s5rms0}"
 
 fail() {
   echo
