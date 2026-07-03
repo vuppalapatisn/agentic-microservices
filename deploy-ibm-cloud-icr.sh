@@ -55,6 +55,12 @@ build_and_push() {
 }
 
 echo "[1/10] Logging in to IBM Cloud Container Registry..."
+# Force the global icr.io endpoint explicitly - `ibmcloud cr login` can
+# otherwise authenticate Docker against a region-specific registry
+# hostname (e.g. us.icr.io), which silently fails later as "unauthorized"
+# when pushing to icr.io since Docker's credential store is keyed by
+# exact hostname.
+ibmcloud cr region-set global || fail
 ibmcloud cr login || fail
 
 echo "[2/10] Ensuring ICR namespace '$ICR_NAMESPACE' exists..."

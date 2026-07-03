@@ -67,7 +67,12 @@ jobs:
         run: ibmcloud login --apikey "${{ secrets.IBM_CLOUD_API_KEY }}" -r "${{ env.IBM_CLOUD_REGION }}"
 
       - name: Log in to IBM Cloud Container Registry
-        run: ibmcloud cr login
+        # `ibmcloud cr login` can authenticate Docker against a region-specific
+        # registry hostname (e.g. us.icr.io) instead of the global `icr.io`
+        # host we push to - Docker's credential store is keyed by exact
+        # hostname, so that mismatch silently fails later as "unauthorized"
+        # on push. Log in directly against the exact host we use instead.
+        run: echo "${{ secrets.IBM_CLOUD_API_KEY }}" | docker login -u iamapikey --password-stdin ${{ env.ICR_REGISTRY }}
 
       - name: Ensure ICR namespace exists
         run: |
