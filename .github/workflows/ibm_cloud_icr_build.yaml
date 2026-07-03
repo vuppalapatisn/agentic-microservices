@@ -39,8 +39,7 @@ on:
       - IBMcloud
     paths:
       - "microservices/**"
-      - "k8s/namespace.yaml"
-      - "k8s/observability/namespace.yaml"
+      - "k8s/**"
       - ".github/workflows/ibm_cloud_icr_build.yaml"
   workflow_dispatch: {}
 
