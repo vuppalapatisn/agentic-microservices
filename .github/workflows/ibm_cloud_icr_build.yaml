@@ -140,6 +140,22 @@ jobs:
           kubectl apply -f k8s/namespace.yaml
           kubectl apply -f k8s/observability/namespace.yaml
 
+      - name: Ensure ICR image pull secret exists
+        # IKS's automatic image-pull secrets (all-icr-io, default-icr-io,
+        # etc.) do not cover every registry host - in.icr.io (in-che /
+        # Chennai) was not present, so pods had zero credentials to pull
+        # with at all (401 Unauthorized on an anonymous pull attempt).
+        # Create/update an explicit pull secret in both namespaces instead.
+        run: |
+          for ns in ecommerce observability; do
+            kubectl create secret docker-registry in-icr-io-secret \
+              --docker-server=${{ env.ICR_REGISTRY }} \
+              --docker-username=iamapikey \
+              --docker-password="${{ secrets.IBM_CLOUD_API_KEY }}" \
+              --namespace="$ns" \
+              --dry-run=client -o yaml | kubectl apply -f -
+          done
+
       - name: Apply application manifests
         run: |
           kubectl apply -f k8s/product

@@ -13,6 +13,8 @@ spec:
       labels:
         app: observability-server
     spec:
+      imagePullSecrets:
+        - name: in-icr-io-secret
       containers:
         - name: observability-server
           image: in.icr.io/agentic/observability-server:latest

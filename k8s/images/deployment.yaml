@@ -13,6 +13,8 @@ spec:
       labels:
         app: images
     spec:
+      imagePullSecrets:
+        - name: in-icr-io-secret
       containers:
         - name: images
           image: in.icr.io/agentic/images:latest

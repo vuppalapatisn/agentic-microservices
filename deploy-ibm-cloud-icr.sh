@@ -24,6 +24,10 @@
 #
 # Override defaults via environment variables, e.g.:
 #   IKS_CLUSTER_ID=myothercluster ICR_NAMESPACE=myns ./deploy-ibm-cloud-icr.sh
+#
+# Set ICR_API_KEY to your IBM Cloud API key to auto-create the in-icr-io-secret
+# image pull secret (see k8s/icr-pull-secret.yaml). Without it, the script
+# warns instead and you must create the secret yourself, one time.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
@@ -33,6 +37,7 @@ IMAGE_TAG="${IMAGE_TAG:-latest}"
 ICR_REGISTRY="${ICR_REGISTRY:-in.icr.io}"
 ICR_REGION="${ICR_REGION:-in-che}"
 ICR_NAMESPACE="${ICR_NAMESPACE:-agentic}"
+ICR_API_KEY="${ICR_API_KEY:-}"
 IKS_CLUSTER_ID="${IKS_CLUSTER_ID:-d93v66vh0iiqv4s5rms0}"
 
 fail() {
@@ -103,6 +108,31 @@ echo "[10/10] Applying Kubernetes manifests and rolling out..."
 cd "$ROOT_DIR" || fail
 kubectl apply -f "$ROOT_DIR/k8s/namespace.yaml" || fail
 kubectl apply -f "$ROOT_DIR/k8s/observability/namespace.yaml" || fail
+
+# IKS's automatic image-pull secrets (all-icr-io, default-icr-io, etc.) do
+# not cover every registry host - in.icr.io (in-che / Chennai) is not
+# included, so pods would otherwise have zero credentials to pull with.
+if [ -n "$ICR_API_KEY" ]; then
+  for ns in ecommerce observability; do
+    kubectl create secret docker-registry in-icr-io-secret \
+      --docker-server="$ICR_REGISTRY" \
+      --docker-username=iamapikey \
+      --docker-password="$ICR_API_KEY" \
+      --namespace="$ns" \
+      --dry-run=client -o yaml | kubectl apply -f - || fail
+  done
+else
+  for ns in ecommerce observability; do
+    if ! kubectl get secret in-icr-io-secret -n "$ns" >/dev/null 2>&1; then
+      echo
+      echo "WARNING: secret 'in-icr-io-secret' not found in namespace '$ns'."
+      echo "Pods will fail to pull images (ImagePullBackOff) until you create it."
+      echo "See k8s/icr-pull-secret.yaml for the exact kubectl create secret command,"
+      echo "or re-run with ICR_API_KEY=<your-ibm-cloud-api-key> to create it automatically."
+      echo
+    fi
+  done
+fi
 
 kubectl apply -f "$ROOT_DIR/k8s/product" || fail
 kubectl apply -f "$ROOT_DIR/k8s/images" || fail
