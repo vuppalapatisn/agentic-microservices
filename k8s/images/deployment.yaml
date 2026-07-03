@@ -13,11 +13,9 @@ spec:
       labels:
         app: images
     spec:
-      imagePullSecrets:
-        - name: dockerhub-registry-secret
       containers:
         - name: images
-          image: docker.io/sudhavuppalapati/images:latest
+          image: icr.io/agentic/images:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8090

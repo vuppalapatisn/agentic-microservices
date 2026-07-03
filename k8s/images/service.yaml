@@ -4,7 +4,7 @@ metadata:
   name: images-service
   namespace: ecommerce
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app: images
   ports:

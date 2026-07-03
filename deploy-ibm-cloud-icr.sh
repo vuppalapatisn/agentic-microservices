@@ -10,6 +10,11 @@
 # clusters also get automatic image-pull access to ICR namespaces in the
 # same IBM Cloud account, with no manual imagePullSecret required.
 #
+# Images are always tagged :latest. Every service's Service is type
+# LoadBalancer, so the application is reachable on a public IP/hostname
+# directly (see the final "Services" output for the EXTERNAL-IP to use) -
+# no port-forward or ingress required.
+#
 # Prerequisites:
 #   1. ibmcloud CLI installed and logged in (ibmcloud login), with the
 #      kubernetes-service and container-registry plugins installed:
@@ -21,7 +26,7 @@
 #   IKS_CLUSTER_ID=myothercluster ICR_NAMESPACE=myns ./deploy-ibm-cloud-icr.sh
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE_TAG="$(date +%Y%m%d%H%M%S)"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
 ICR_REGISTRY="${ICR_REGISTRY:-icr.io}"
 ICR_NAMESPACE="${ICR_NAMESPACE:-agentic}"
 IKS_CLUSTER_ID="${IKS_CLUSTER_ID:-d93v66vh0iiqv4s5rms0}"
@@ -83,7 +88,6 @@ kubectl apply -f "$ROOT_DIR/k8s/observability/namespace.yaml" || fail
 kubectl apply -f "$ROOT_DIR/k8s/product" || fail
 kubectl apply -f "$ROOT_DIR/k8s/images" || fail
 kubectl apply -f "$ROOT_DIR/k8s/ecommerce" || fail
-kubectl apply -f "$ROOT_DIR/k8s/ingress" || fail
 kubectl apply -f "$ROOT_DIR/k8s/observability/prometheus" || fail
 kubectl apply -f "$ROOT_DIR/k8s/observability/loki" || fail
 kubectl apply -f "$ROOT_DIR/k8s/observability/promtail" || fail
@@ -98,6 +102,15 @@ kubectl set image deployment/images images=$ICR_REGISTRY/$ICR_NAMESPACE/images:$
 kubectl set image deployment/ecommerce ecommerce=$ICR_REGISTRY/$ICR_NAMESPACE/ecommerce:$IMAGE_TAG -n ecommerce || fail
 kubectl set image deployment/observability-server observability-server=$ICR_REGISTRY/$ICR_NAMESPACE/observability-server:$IMAGE_TAG -n observability || fail
 kubectl set image deployment/observability-debug-agent observability-debug-agent=$ICR_REGISTRY/$ICR_NAMESPACE/observability-debug-agent:$IMAGE_TAG -n observability || fail
+
+# The tag is always ":latest", so `kubectl set image` above is a no-op once
+# the field already points at that exact string - it will NOT pull the
+# freshly-pushed content on its own. Force every pod to restart and re-pull.
+kubectl rollout restart deployment/product -n ecommerce || fail
+kubectl rollout restart deployment/images -n ecommerce || fail
+kubectl rollout restart deployment/ecommerce -n ecommerce || fail
+kubectl rollout restart deployment/observability-server -n observability || fail
+kubectl rollout restart deployment/observability-debug-agent -n observability || fail
 
 kubectl rollout status deployment/product -n ecommerce || fail
 kubectl rollout status deployment/images -n ecommerce || fail
@@ -115,14 +128,11 @@ echo
 echo "Observability Pods:"
 kubectl get pods -n observability
 echo
-echo "Services:"
+echo "Services (see EXTERNAL-IP for public access - no port-forward needed):"
 kubectl get svc -n ecommerce
 echo
 echo "Observability Services:"
 kubectl get svc -n observability
-echo
-echo "Ingress:"
-kubectl get ingress -n ecommerce
 echo
 echo "IBM Cloud (ICR) deployment complete."
 echo "Images: $ICR_REGISTRY/$ICR_NAMESPACE/<service>:$IMAGE_TAG"

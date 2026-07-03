@@ -13,11 +13,9 @@ spec:
       labels:
         app: observability-server
     spec:
-      imagePullSecrets:
-        - name: dockerhub-registry-secret
       containers:
         - name: observability-server
-          image: docker.io/sudhavuppalapati/observability-server:latest
+          image: icr.io/agentic/observability-server:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
