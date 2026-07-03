@@ -58,7 +58,21 @@ echo "[1/10] Logging in to IBM Cloud Container Registry..."
 ibmcloud cr login || fail
 
 echo "[2/10] Ensuring ICR namespace '$ICR_NAMESPACE' exists..."
-ibmcloud cr namespace-add "$ICR_NAMESPACE" || echo "Namespace '$ICR_NAMESPACE' may already exist, continuing."
+NS_OUTPUT=$(ibmcloud cr namespace-add "$ICR_NAMESPACE" 2>&1) || true
+echo "$NS_OUTPUT"
+if echo "$NS_OUTPUT" | grep -qi "already exists"; then
+  echo "Namespace '$ICR_NAMESPACE' already exists, continuing."
+elif echo "$NS_OUTPUT" | grep -qiE "created|OK"; then
+  echo "Namespace '$ICR_NAMESPACE' created."
+else
+  echo "Could not create/verify ICR namespace '$ICR_NAMESPACE'. This usually means your"
+  echo "IBM Cloud account/API key lacks a Container Registry IAM role (needs at least"
+  echo "Writer, scoped to all resource groups or the one this namespace belongs to)."
+  echo "Fix in the IBM Cloud console under Manage > Access (IAM), then re-run."
+  fail
+fi
+echo "Namespaces visible to this account:"
+ibmcloud cr namespace-list
 
 echo "[3/10] Pointing kubectl at IBM Cloud Kubernetes cluster ($IKS_CLUSTER_ID)..."
 ibmcloud ks cluster config --cluster "$IKS_CLUSTER_ID" || fail

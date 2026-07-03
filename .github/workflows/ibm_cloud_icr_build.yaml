@@ -70,7 +70,19 @@ jobs:
         run: ibmcloud cr login
 
       - name: Ensure ICR namespace exists
-        run: ibmcloud cr namespace-add ${{ env.ICR_NAMESPACE }} || echo "Namespace may already exist, continuing."
+        run: |
+          OUTPUT=$(ibmcloud cr namespace-add ${{ env.ICR_NAMESPACE }} 2>&1) || true
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -qi "already exists"; then
+            echo "Namespace '${{ env.ICR_NAMESPACE }}' already exists, continuing."
+          elif echo "$OUTPUT" | grep -qiE "created|OK"; then
+            echo "Namespace '${{ env.ICR_NAMESPACE }}' created."
+          else
+            echo "::error::Could not create/verify ICR namespace '${{ env.ICR_NAMESPACE }}'. This usually means IBM_CLOUD_API_KEY lacks a Container Registry IAM role (needs at least Writer, scoped to all resource groups or the one this namespace belongs to). Fix in the IBM Cloud console under Manage > Access (IAM), then re-run."
+            exit 1
+          fi
+          echo "Namespaces visible to this API key:"
+          ibmcloud cr namespace-list
 
       - name: Configure kubectl for the IKS cluster
         run: |
