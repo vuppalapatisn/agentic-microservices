@@ -7,11 +7,20 @@ name: IBM Cloud (ICR) - Build, Push & Deploy
 # images into the same ICR namespace, then applies the k8s manifests and
 # rolls out the new images on the IBM Cloud Kubernetes Service (IKS) cluster.
 #
-# Why ICR instead of Docker Hub: ICR sits on IBM's own network, so IKS
-# worker nodes can reach it without needing outbound internet access (no
-# VPC Public Gateway dependency, unlike pulling from docker.io). IKS
-# clusters also get automatic image-pull access to ICR namespaces in the
-# same IBM Cloud account, with no manual imagePullSecret required.
+# Why ICR instead of Docker Hub: this cluster has Outbound Traffic
+# Protection enabled, which blocks worker nodes from reaching ANY public
+# internet destination (confirmed - even ghcr.io times out identically to
+# docker.io) and only allows IBM Cloud's own services through its private
+# VPE Gateway. ICR is one of those allowed services; Docker Hub/GHCR/etc.
+# are not, and no VPC Public Gateway or account setting can override this.
+#
+# IKS's automatic image-pull secrets do not cover every ICR regional host -
+# in.icr.io (in-che / Chennai) is not included, so a manual pull secret
+# (in-icr-io-secret) is created below in both namespaces.
+#
+# Requires the account's Container Registry plan to be Standard, not Lite -
+# the Lite plan's 512 MB storage / 5.1 GB pull traffic monthly quota is
+# easy to exceed while iterating. Upgrade with: ibmcloud cr plan-upgrade standard
 #
 # Every app-facing Service (product, images, ecommerce,
 # observability-debug-agent) is type LoadBalancer, so the application is
