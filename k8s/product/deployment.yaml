@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: product
-          image: icr.io/agentic/product:latest
+          image: in.icr.io/agentic/product:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8090

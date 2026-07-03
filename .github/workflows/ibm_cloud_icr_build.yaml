@@ -2,7 +2,7 @@ name: IBM Cloud (ICR) - Build, Push & Deploy
 
 # ---------------------------------------------------------------------------
 # Same end result as deploy-ibm-cloud-icr.sh, run in CI: builds each service,
-# pushes it to IBM Cloud Container Registry (icr.io/agentic/<service>:latest)
+# pushes it to IBM Cloud Container Registry (in.icr.io/agentic/<service>:latest)
 # instead of Docker Hub, then applies the k8s manifests and rolls out the
 # new image on the IBM Cloud Kubernetes Service (IKS) cluster.
 #
@@ -35,7 +35,8 @@ on:
   workflow_dispatch: {}
 
 env:
-  ICR_REGISTRY: icr.io
+  ICR_REGISTRY: in.icr.io
+  ICR_REGION: in-che
   ICR_NAMESPACE: agentic
   IMAGE_TAG: latest
   IKS_CLUSTER_ID: d93v66vh0iiqv4s5rms0
@@ -66,12 +67,17 @@ jobs:
       - name: Log in to IBM Cloud
         run: ibmcloud login --apikey "${{ secrets.IBM_CLOUD_API_KEY }}" -r "${{ env.IBM_CLOUD_REGION }}"
 
+      - name: Set Container Registry region
+        # This account's registry namespace lives under the in-che region,
+        # whose registry hostname is in.icr.io (not the global icr.io).
+        # Verify with `ibmcloud cr region-set --list` if the account changes.
+        run: ibmcloud cr region-set ${{ env.ICR_REGION }}
+
       - name: Log in to IBM Cloud Container Registry
-        # `ibmcloud cr login` can authenticate Docker against a region-specific
-        # registry hostname (e.g. us.icr.io) instead of the global `icr.io`
-        # host we push to - Docker's credential store is keyed by exact
-        # hostname, so that mismatch silently fails later as "unauthorized"
-        # on push. Log in directly against the exact host we use instead.
+        # Log Docker in directly against the exact hostname we push to,
+        # rather than relying on `ibmcloud cr login`'s region resolution -
+        # Docker's credential store is keyed by exact hostname, so any
+        # mismatch here would silently fail later as "unauthorized" on push.
         run: echo "${{ secrets.IBM_CLOUD_API_KEY }}" | docker login -u iamapikey --password-stdin ${{ env.ICR_REGISTRY }}
 
       - name: Ensure ICR namespace exists

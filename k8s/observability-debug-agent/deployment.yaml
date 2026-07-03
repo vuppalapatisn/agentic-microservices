@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: observability-debug-agent
-          image: icr.io/agentic/observability-debug-agent:latest
+          image: in.icr.io/agentic/observability-debug-agent:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:

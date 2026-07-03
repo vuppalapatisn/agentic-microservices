@@ -27,7 +27,11 @@
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
-ICR_REGISTRY="${ICR_REGISTRY:-icr.io}"
+# This account's registry namespace lives under the in-che region, whose
+# registry hostname is in.icr.io (not the global icr.io). Verify with
+# `ibmcloud cr region-set --list` if the account changes.
+ICR_REGISTRY="${ICR_REGISTRY:-in.icr.io}"
+ICR_REGION="${ICR_REGION:-in-che}"
 ICR_NAMESPACE="${ICR_NAMESPACE:-agentic}"
 IKS_CLUSTER_ID="${IKS_CLUSTER_ID:-d93v66vh0iiqv4s5rms0}"
 
@@ -55,12 +59,7 @@ build_and_push() {
 }
 
 echo "[1/10] Logging in to IBM Cloud Container Registry..."
-# Force the global icr.io endpoint explicitly - `ibmcloud cr login` can
-# otherwise authenticate Docker against a region-specific registry
-# hostname (e.g. us.icr.io), which silently fails later as "unauthorized"
-# when pushing to icr.io since Docker's credential store is keyed by
-# exact hostname.
-ibmcloud cr region-set global || fail
+ibmcloud cr region-set "$ICR_REGION" || fail
 ibmcloud cr login || fail
 
 echo "[2/10] Ensuring ICR namespace '$ICR_NAMESPACE' exists..."

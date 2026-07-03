@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: ecommerce
-          image: icr.io/agentic/ecommerce:latest
+          image: in.icr.io/agentic/ecommerce:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8090
