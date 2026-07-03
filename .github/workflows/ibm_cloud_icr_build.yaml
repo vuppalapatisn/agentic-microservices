@@ -72,14 +72,9 @@ jobs:
 
       - name: Configure kubectl for the IKS cluster
         run: |
-          OUTPUT=$(ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}")
-          echo "$OUTPUT"
-          KCPATH=$(echo "$OUTPUT" | grep -oE '/[^ ]*kube-config[^ ]*\.yml')
-          if [ -z "$KCPATH" ]; then
-            echo "::error::Could not find kubeconfig path in ibmcloud output above"
-            exit 1
-          fi
-          echo "KUBECONFIG=$KCPATH" >> "$GITHUB_ENV"
+          ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}"
+          echo "Current kubectl context:"
+          kubectl config current-context
 
       - name: Build & push observability-server
         working-directory: microservices/observability-server

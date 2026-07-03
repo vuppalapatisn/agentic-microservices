@@ -110,6 +110,8 @@ jobs:
         run: |
           ibmcloud login --apikey "${{ secrets.IBM_CLOUD_API_KEY }}" -r "${{ env.IBM_CLOUD_REGION }}"
           ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}"
+          echo "Current kubectl context:"
+          kubectl config current-context
 
       - name: Apply namespaces
         run: |
