@@ -135,6 +135,32 @@ jobs:
           docker build --no-cache -t ${{ env.ICR_REGISTRY }}/${{ env.ICR_NAMESPACE }}/ecommerce:${{ env.IMAGE_TAG }} .
           docker push ${{ env.ICR_REGISTRY }}/${{ env.ICR_NAMESPACE }}/ecommerce:${{ env.IMAGE_TAG }}
 
+      - name: Mirror upstream observability images to ICR
+        # prometheus/grafana/loki/promtail pull directly from Docker Hub,
+        # which this cluster's worker nodes cannot reach (no outbound
+        # internet route). This GitHub Actions runner CAN reach Docker Hub
+        # fine, so pull each image here and re-push it into our own ICR
+        # namespace, which the cluster CAN reach - same fix as our own
+        # app images, just for the third-party ones too.
+        run: |
+          REG="${{ env.ICR_REGISTRY }}/${{ env.ICR_NAMESPACE }}"
+
+          docker pull prom/prometheus:v2.54.1
+          docker tag prom/prometheus:v2.54.1 "$REG/prometheus:v2.54.1"
+          docker push "$REG/prometheus:v2.54.1"
+
+          docker pull grafana/grafana:11.1.4
+          docker tag grafana/grafana:11.1.4 "$REG/grafana:11.1.4"
+          docker push "$REG/grafana:11.1.4"
+
+          docker pull grafana/loki:3.1.1
+          docker tag grafana/loki:3.1.1 "$REG/loki:3.1.1"
+          docker push "$REG/loki:3.1.1"
+
+          docker pull grafana/promtail:3.1.1
+          docker tag grafana/promtail:3.1.1 "$REG/promtail:3.1.1"
+          docker push "$REG/promtail:3.1.1"
+
       - name: Apply namespaces
         run: |
           kubectl apply -f k8s/namespace.yaml

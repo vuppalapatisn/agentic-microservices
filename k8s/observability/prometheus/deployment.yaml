@@ -14,9 +14,11 @@ spec:
         app: prometheus
     spec:
       serviceAccountName: prometheus
+      imagePullSecrets:
+        - name: in-icr-io-secret
       containers:
         - name: prometheus
-          image: prom/prometheus:v2.54.1
+          image: in.icr.io/agentic/prometheus:v2.54.1
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus

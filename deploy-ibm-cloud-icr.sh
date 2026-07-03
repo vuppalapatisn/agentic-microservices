@@ -104,6 +104,25 @@ build_and_push "images" "images" "yes"
 echo "[9/10] Building and pushing ecommerce..."
 build_and_push "ecommerce" "ecommerce" "yes"
 
+echo "[9b/10] Mirroring upstream observability images (Docker Hub -> ICR)..."
+# prometheus/grafana/loki/promtail pull directly from Docker Hub, which
+# this cluster's worker nodes cannot reach (no outbound internet route).
+# Mirror each image into our own ICR namespace instead - same fix as our
+# own app images, just for the third-party ones too.
+mirror_image() {
+  local src="$1"
+  local name="$2"
+  local tag="$3"
+  local dest="$ICR_REGISTRY/$ICR_NAMESPACE/$name:$tag"
+  docker pull "$src" || fail
+  docker tag "$src" "$dest" || fail
+  docker push "$dest" || fail
+}
+mirror_image "prom/prometheus:v2.54.1" "prometheus" "v2.54.1"
+mirror_image "grafana/grafana:11.1.4" "grafana" "11.1.4"
+mirror_image "grafana/loki:3.1.1" "loki" "3.1.1"
+mirror_image "grafana/promtail:3.1.1" "promtail" "3.1.1"
+
 echo "[10/10] Applying Kubernetes manifests and rolling out..."
 cd "$ROOT_DIR" || fail
 kubectl apply -f "$ROOT_DIR/k8s/namespace.yaml" || fail

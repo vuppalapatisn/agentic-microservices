@@ -13,9 +13,11 @@ spec:
       labels:
         app: loki
     spec:
+      imagePullSecrets:
+        - name: in-icr-io-secret
       containers:
         - name: loki
-          image: grafana/loki:3.1.1
+          image: in.icr.io/agentic/loki:3.1.1
           args:
             - -config.file=/etc/loki/loki.yaml
           ports:

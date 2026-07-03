@@ -13,9 +13,11 @@ spec:
       labels:
         app: grafana
     spec:
+      imagePullSecrets:
+        - name: in-icr-io-secret
       containers:
         - name: grafana
-          image: grafana/grafana:11.1.4
+          image: in.icr.io/agentic/grafana:11.1.4
           env:
             - name: GF_AUTH_ANONYMOUS_ENABLED
               value: "true"

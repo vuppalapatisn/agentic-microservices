@@ -13,9 +13,11 @@ spec:
         app: promtail
     spec:
       serviceAccountName: promtail
+      imagePullSecrets:
+        - name: in-icr-io-secret
       containers:
         - name: promtail
-          image: grafana/promtail:3.1.1
+          image: in.icr.io/agentic/promtail:3.1.1
           args:
             - -config.file=/etc/promtail/promtail.yaml
           volumeMounts:
