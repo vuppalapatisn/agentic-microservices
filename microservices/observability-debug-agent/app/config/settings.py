@@ -6,6 +6,11 @@ class Settings:
     def __init__(self) -> None:
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "").strip()
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip()
+        # Set to any OpenAI-compatible endpoint (e.g. Gemini's
+        # https://generativelanguage.googleapis.com/v1beta/openai/) to use a
+        # different provider without changing the OPENAI_API_KEY/OPENAI_MODEL
+        # env var names. Leave unset to use OpenAI's own API.
+        self.openai_base_url = os.getenv("OPENAI_BASE_URL", "").strip() or None
         self.observability_agent_base_url = os.getenv(
             "OBSERVABILITY_AGENT_BASE_URL",
             "http://observability-server.observability.svc.cluster.local:8091",

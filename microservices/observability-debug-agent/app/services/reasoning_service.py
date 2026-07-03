@@ -5,7 +5,7 @@ from app.config.settings import Settings
 
 class ReasoningService:
     def __init__(self, settings: Settings) -> None:
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self.client = AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
         self.model = settings.openai_model
 
     async def summarize(self, messages: list[dict]) -> str:
