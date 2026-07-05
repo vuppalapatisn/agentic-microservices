@@ -38,7 +38,7 @@ on:
 
 env:
   DOCKERHUB_NAMESPACE: sudhavuppalapati
-  IKS_CLUSTER_ID: d92fbhuh0h54olrrmsfg
+  IKS_CLUSTER_ID: d93v66vh0iiqv4s5rms0
   # Chennai, India. Verify with `ibmcloud regions` if the cluster ever moves.
   IBM_CLOUD_REGION: in-che
 
@@ -109,14 +109,9 @@ jobs:
       - name: Log in to IBM Cloud & configure kubectl
         run: |
           ibmcloud login --apikey "${{ secrets.IBM_CLOUD_API_KEY }}" -r "${{ env.IBM_CLOUD_REGION }}"
-          OUTPUT=$(ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}")
-          echo "$OUTPUT"
-          KCPATH=$(echo "$OUTPUT" | grep -oE '/[^ ]*kube-config[^ ]*\.yml')
-          if [ -z "$KCPATH" ]; then
-            echo "::error::Could not find kubeconfig path in ibmcloud output above"
-            exit 1
-          fi
-          echo "KUBECONFIG=$KCPATH" >> "$GITHUB_ENV"
+          ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}"
+          echo "Current kubectl context:"
+          kubectl config current-context
 
       - name: Apply namespaces
         run: |

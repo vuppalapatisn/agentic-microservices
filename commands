@@ -1,0 +1,104 @@
+EOF
+
+    2  ln: failed to create symbolic link '/etc/mtab': Permission denied
+    3  'C:\WINDOWS\system32\drivers\etc\hosts' -> '/etc/hosts'
+    4  /usr/bin/cp: cannot create regular file '/etc/hosts': Permission denied
+    5  'C:\WINDOWS\system32\drivers\etc\protocol' -> '/etc/protocols'
+    6  /usr/bin/cp: cannot create regular file '/etc/protocols': Permission denied
+    7  'C:\WINDOWS\system32\drivers\etc\services' -> '/etc/services'
+    8  /usr/bin/cp: cannot create regular file '/etc/services': Permission denied
+    9  'C:\WINDOWS\system32\drivers\etc\networks' -> '/etc/networks'
+   10  /usr/bin/cp: cannot create regular file '/etc/networks': Permission denied
+   11  rm: cannot remove '/etc/post-install/01-devices.post': Permission denied
+   12  rm: cannot remove '/etc/post-install/03-mtab.post': Permission denied
+   13  rm: cannot remove '/etc/post-install/06-windows-files.post': Permission denied
+   14  rm: cannot remove '/etc/post-install/99-post-install-cleanup.post': Permission denied
+   15  Run these on your Mac and paste back the output:
+   16  echo "--- Exact pull error ---"
+   17  kubectl describe pod -l app=product -n ecommerce | tail -15
+   18  echo "--- What pull secrets exist in this namespace? ---"
+   19  kubectl get secrets -n ecommerce
+   20  
+   21  kubectl get pods -n observability
+   22  kubectl describe pod -l app=prometheus -n observability | tail -25
+   23  kubectl describe nodes | grep -A 5 'Allocated resources'
+   24  clear
+   25  ibmcloud ks cluster config --cluster d93v66vh0iiqv4s5rms0
+   26  kubectl get pods -n observability
+   27  kubectl describe pod -l app=prometheus -n observability | tail -25
+   28  kubectl describe nodes | grep -A 5 'Allocated resources'
+   29  kubectl get pods -n ecommerce -w
+   30  kubectl get pods -n observability -w
+   31  kubectl get pods -n observability 
+   32  clear 
+   33  ibmcloud plugin install vpc-infrastructure -f
+   34  ibmcloud target -r in-che
+   35  ibmcloud ks cluster get --cluster d93v66vh0iiqv4s5rms0
+   36  ibmcloud ks worker-pool ls --cluster d93v66vh0iiqv4s5rms0
+   37  ibmcloud ks worker-pool get --cluster d93v66vh0iiqv4s5rms0 --worker-pool  default
+   38  ibmcloud is subnet 05d7-9d2c5b51-edf7-4a2a-bae1-7add29e91c7c
+   39  ibmcloud is subnet 05e7-5002b277-19d3-4d6d-abf7-c5442d6b9182
+   40  ibmcloud is subnet 05f7-7067ea02-36ce-4400-89af-960e13b33a39
+   41  kubectl run netcheck --rm -it --restart=Never --image=curlimages/curl -n default --   sh -c "curl -m 8 -sI https://registry-1.docker.io || echo DOCKERHUB_BLOCKED"
+   42   kubectl config current-context 
+   43  kubectl config current-context 
+   44  kubectl run netcheck --rm -it --restart=Never --image=curlimages/curl -n default --   sh -c "curl -m 8 -sI https://registry-1.docker.io || echo DOCKERHUB_BLOCKED"
+   45  clear
+   46  kubectl run netcheck --restart=Never --image=curlimages/curl -n default -- sh -c "curl -m 8 -sI https://registry-1.docker.io; sleep 300"
+   47  kubectl get pod netcheck -n default
+   48  kubectl describe pod netcheck -n default | tail -15
+   49  kubectl logs netcheck -n default
+   50  sleep 90
+   51  kubectl get pod netcheck -n default
+   52  kubectl describe pod netcheck -n default | tail -15
+   53  kubectl logs netcheck -n default
+   54  kubectl get pod netcheck -n default
+   55  kubectl logs netcheck -n default
+   56  clear
+   57  kubectl get pod netcheck -n default
+   58  kubectl describe pod netcheck -n default | tail -15
+   59  kubectl logs netcheck -n default
+   60  kubectl delete pod netcheck -n default
+   61  nslookup registry-1.docker.io
+   62  curl -v https://registry-1.docker.io/v2/
+   63  kubectl run curltest --image=curlimages/curl -it --rm --restart=Never -- sh
+   64  curl -v https://registry-1.docker.io/v2/
+   65  kubectl get pods -A
+   66  kubectl get events --sort-by=.metadata.creationTimestamp
+   67  ibmcloud ks cluster get --cluster mycluster-in-che-1-cxf.4x8
+   68  ibmcloud ks workers --cluster mycluster-in-che-1-cxf.4x8
+   69  clear
+   70  kubectl exec -n ecommerce deploy/ecommerce -- wget -T 8 -S -O /dev/null https://ghcr.io/v2/
+   71  ibmcloud cr plan-upgrade standard
+   72  kubectl get pods -A
+   73  kubectl logs -n observability observability-debug-agent-7d8f6c79f5-2grqj --previous
+   74  kubectl create secret generic observability-debug-agent-secret --from-literal=OPENAI_API_KEY=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 -n observability
+   75  kubectl rollout restart deployment/observability-debug-agent -n observability
+   76  kubectl get pods -n observability -w
+   77  kubectl get svc -n ecommerce
+   78  kubectl get svc -n observability
+   79  kubectl logs -n observability deploy/observability-debug-agent --tail=50
+   80  kubectl logs -n observability deploy/observability-debug-agent --tail=300 | grep -v "/health"~
+   81  kubectl logs -n observability deploy/observability-debug-agent --tail=300 | grep -v "/health"
+   82  kubectl get svc -n observability
+   83  clear
+   84  kubectl exec -n ecommerce deploy/ecommerce -- wget -T 8 -S -O /dev/null https://api.openai.com/v1/models
+   85  ibmcloud oc vpc outbound-traffic-protection disable --cluster d93v66vh0iiqv4s5rms0
+   86  ibmcloud ks vpc outbound-traffic-protection disable --cluster d93v66vh0iiqv4s5rms0
+   87  kubectl exec -n ecommerce deploy/ecommerce -- wget -T 8 -S -O /dev/null https://api.openai.com/v1/models
+   88   kubectl delete secret observability-debug-agent-secret -n observability
+   89  kubectl delete secret observability-debug-agent-secret -n observability
+   90  kubectl create secret generic observability-debug-agent-secret --from-literal=OPENAI_API_KEY=  -n observability
+   91   kubectl create secret generic observability-debug-agent-secret   --from-literal=OPENAI_API_KEY=    -n observability
+   92  kubectl create secret generic observability-debug-agent-secret   --from-literal=OPENAI_API_KEY=    -n observability
+   93  kubectl create secret generic observability-debug-agent-secret   --from-literal=OPENAI_API_KEY=    -n observability
+   94  kubectl rollout restart deployment/observability-debug-agent -n observability
+   95  clear
+   96  vi test.py
+   97  python3 scripts/simulate_traffic_spike.py   --url http://6da59d44-in-che.lb.appdomain.cloud:8090/ecommerce-service/ecommerceProducts   --spike-rps 300 --spike-duration 60
+   98  ls
+   99  python3 ./test.py   --url http://6da59d44-in-che.lb.appdomain.cloud:8090/ecommerce-service/ecommerceProducts   --spike-rps 300 --spike-duration 60
+  100  ls
+  101  python3 ./test_fixed.py   --url http://6da59d44-in-che.lb.appdomain.cloud:8090/ecommerce-service/ecommerceProducts   --spike-rps 300 --spike-duration 60
+  102  python3 ./test_fixed.py   --url http://6da59d44-in-che.lb.appdomain.cloud:8090/ecommerce-service/ecommerceProducts   --spike-rps 3000 --spike-duration 600
+  103  history 
