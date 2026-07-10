@@ -7,6 +7,16 @@ but adapts the two things that are cloud-specific: the **ingress** and the **ima
 > New to free options first? See [FREE-TESTING-DEPLOYMENT.md](FREE-TESTING-DEPLOYMENT.md).
 > Architecture + service list: [/CLAUDE.md](../CLAUDE.md).
 
+> **Just want it deployed?** Run the automated script instead of the steps below:
+> ```bash
+> PROJECT_ID=<your-project> OPENAI_API_KEY=sk-... ./deploy-gke.sh
+> ```
+> It creates a Standard cluster, applies all manifests, installs ingress-nginx with
+> GKE-compatible rules, and prints the external IP. See the header of
+> [deploy-gke.sh](../deploy-gke.sh) for all env-var overrides (including
+> `IMAGE_MODE=artifact-registry` to build+push your own images). The manual runbook
+> below is the same flow, step by step.
+
 ---
 
 ## Two GKE-specific gotchas (read first)
