@@ -1,0 +1,38 @@
+server:
+  port: 8092
+
+spring:
+  application:
+    name: observability-debug-agent
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4.1-mini}
+          max-tokens: 220
+
+observability:
+  agent:
+    base-url: ${OBSERVABILITY_AGENT_BASE_URL:http://observability-server.observability.svc.cluster.local:8091}
+    request-timeout-seconds: ${REQUEST_TIMEOUT_SECONDS:10}
+    startup-validation-retries: ${STARTUP_VALIDATION_RETRIES:30}
+    startup-validation-retry-seconds: ${STARTUP_VALIDATION_RETRY_SECONDS:2}
+  grafana:
+    base-url: ${GRAFANA_BASE_URL:http://localhost:3000}
+    api-base-url: ${GRAFANA_API_BASE_URL:http://grafana.observability.svc.cluster.local:3000}
+    loki-datasource-uid: ${GRAFANA_LOKI_DATASOURCE_UID:loki}
+    dashboard-uid: ${GRAFANA_DASHBOARD_UID:ecommerce-observability}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ} %p %c - %m%n"
