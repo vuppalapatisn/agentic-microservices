@@ -1,0 +1,271 @@
+name: GKE - Build, Push & Deploy
+
+# ---------------------------------------------------------------------------
+# Google Kubernetes Engine counterpart of ibm_cloud_build.yaml / deploy-gke.sh.
+# Runs the full build+deploy in CI against a GKE *Standard* cluster:
+#   - build each service with Maven, docker build, docker push to Docker Hub
+#   - authenticate to Google Cloud and point kubectl at the GKE cluster
+#   - apply the ecommerce/observability namespaces
+#   - warn if the image pull / OpenAI secrets are missing
+#   - apply the service + observability manifests (NOT the AWS ALB ingress)
+#   - install ingress-nginx and apply GKE-compatible ingress rules
+#   - kubectl set image each deployment to the freshly pushed tag
+#   - wait on kubectl rollout status for every deployment
+#   - print final pod/ingress status + external IP to the job summary
+#
+# Why GKE Standard (not Autopilot): promtail is a DaemonSet that mounts
+# hostPath volumes (/var/log/pods, /run/promtail); Autopilot rejects hostPath,
+# which breaks log shipping to Loki. See docs/DEPLOY-GKE.md.
+#
+# Why a separate ingress: k8s/ingress and k8s/observability/ingress.yaml use AWS
+# ALB annotations that do nothing on GKE, so this workflow skips them and uses
+# ingress-nginx instead (same path routing).
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   DOCKER_USERNAME   Docker Hub username (same secret used by docker_build.yaml)
+#   DOCKER_PASSWORD   Docker Hub access token (same secret used by docker_build.yaml)
+#   GCP_SA_KEY        JSON key for a GCP service account with roles
+#                     roles/container.developer (deploy to GKE) on the project.
+#                     Create with:
+#                       gcloud iam service-accounts keys create key.json \
+#                         --iam-account=<sa>@<project>.iam.gserviceaccount.com
+#                     then paste key.json's contents as the secret value.
+#
+# Prerequisites (one-time, not automated here):
+#   - A GKE Standard cluster matching GKE_CLUSTER/GKE_ZONE below (create it with
+#     deploy-gke.sh or `gcloud container clusters create`).
+#   - If the Docker Hub repos are private: the dockerhub-registry-secret pull
+#     secret in both namespaces (see k8s/dockerhub-secret.yaml). Public repos
+#     need no pull secret.
+#   - The observability-debug-agent-secret (OPENAI_API_KEY) in the observability
+#     namespace, or /api/v1/investigate will fail.
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "microservices/**"
+      - "k8s/namespace.yaml"
+      - "k8s/observability/namespace.yaml"
+      - ".github/workflows/gke_build.yaml"
+  workflow_dispatch: {}
+
+env:
+  DOCKERHUB_NAMESPACE: sudhavuppalapati
+  # Update these to match your cluster (see deploy-gke.sh defaults).
+  GCP_PROJECT_ID: project-333420d5-6cc8-4bad-8af
+  GKE_CLUSTER: agentic-microservices
+  GKE_ZONE: us-central1-a
+
+jobs:
+  build-push-deploy:
+    name: Build, push images & deploy to GKE
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Set image tag
+        id: tag
+        run: echo "tag=$(date +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build & push observability-server
+        working-directory: microservices/observability-server
+        run: |
+          mvn clean package
+          docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-server:${{ steps.tag.outputs.tag }} .
+          docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-server:${{ steps.tag.outputs.tag }}
+
+      - name: Build & push observability-debug-agent
+        working-directory: microservices/observability-debug-agent-java
+        run: |
+          mvn clean package -DskipTests
+          docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-debug-agent:${{ steps.tag.outputs.tag }} .
+          docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-debug-agent:${{ steps.tag.outputs.tag }}
+
+      - name: Build & push product
+        working-directory: microservices/product
+        run: |
+          mvn clean package
+          docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/product:${{ steps.tag.outputs.tag }} .
+          docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/product:${{ steps.tag.outputs.tag }}
+
+      - name: Build & push images
+        working-directory: microservices/images
+        run: |
+          mvn clean package
+          docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/images:${{ steps.tag.outputs.tag }} .
+          docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/images:${{ steps.tag.outputs.tag }}
+
+      - name: Build & push ecommerce
+        working-directory: microservices/ecommerce
+        run: |
+          mvn clean package
+          docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/ecommerce:${{ steps.tag.outputs.tag }} .
+          docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/ecommerce:${{ steps.tag.outputs.tag }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud (with GKE auth plugin)
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          install_components: gke-gcloud-auth-plugin
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_ZONE }}
+
+      - name: Show kubectl context
+        run: kubectl config current-context
+
+      - name: Apply namespaces
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/observability/namespace.yaml
+
+      - name: Check required secrets exist
+        run: |
+          for ns in ecommerce observability; do
+            if ! kubectl get secret dockerhub-registry-secret -n "$ns" >/dev/null 2>&1; then
+              echo "::warning::secret 'dockerhub-registry-secret' not found in namespace '$ns'. Fine for public Docker Hub repos; if pods hit ImagePullBackOff the repos are private — see k8s/dockerhub-secret.yaml."
+            fi
+          done
+          if ! kubectl get secret observability-debug-agent-secret -n observability >/dev/null 2>&1; then
+            echo "::warning::secret 'observability-debug-agent-secret' (OPENAI_API_KEY) not found in namespace 'observability'. Pods start, but /api/v1/investigate fails until you create it."
+          fi
+
+      - name: Apply application manifests
+        run: |
+          kubectl apply -f k8s/product
+          kubectl apply -f k8s/images
+          kubectl apply -f k8s/ecommerce
+          # NOTE: k8s/ingress is AWS ALB-only — handled by ingress-nginx below.
+
+      - name: Apply observability stack manifests
+        run: |
+          kubectl apply -f k8s/observability/prometheus
+          kubectl apply -f k8s/observability/loki
+          kubectl apply -f k8s/observability/promtail
+          kubectl apply -f k8s/observability/grafana
+          kubectl apply -f k8s/observability-server
+          kubectl apply -f k8s/observability-debug-agent/configmap.yaml
+          kubectl apply -f k8s/observability-debug-agent/deployment.yaml
+          kubectl apply -f k8s/observability-debug-agent/service.yaml
+          # NOTE: k8s/observability/ingress.yaml is AWS ALB-only — see below.
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install ingress-nginx & apply GKE ingress
+        run: |
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx --create-namespace --wait
+          kubectl apply -f - <<'EOF'
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: ecommerce-ingress
+            namespace: ecommerce
+          spec:
+            ingressClassName: nginx
+            rules:
+              - http:
+                  paths:
+                    - path: /ecommerceApp
+                      pathType: Prefix
+                      backend: { service: { name: ecommerce-service, port: { number: 8090 } } }
+                    - path: /product-service
+                      pathType: Prefix
+                      backend: { service: { name: product-service, port: { number: 8090 } } }
+                    - path: /image-service
+                      pathType: Prefix
+                      backend: { service: { name: images-service, port: { number: 8090 } } }
+          ---
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: observability-ingress
+            namespace: observability
+          spec:
+            ingressClassName: nginx
+            rules:
+              - http:
+                  paths:
+                    - path: /observability
+                      pathType: Prefix
+                      backend: { service: { name: observability-debug-agent, port: { number: 8092 } } }
+          EOF
+
+      - name: Roll out pushed image tag
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          NS="${{ env.DOCKERHUB_NAMESPACE }}"
+          kubectl set image deployment/product product=docker.io/$NS/product:$TAG -n ecommerce
+          kubectl set image deployment/images images=docker.io/$NS/images:$TAG -n ecommerce
+          kubectl set image deployment/ecommerce ecommerce=docker.io/$NS/ecommerce:$TAG -n ecommerce
+          kubectl set image deployment/observability-server observability-server=docker.io/$NS/observability-server:$TAG -n observability
+          kubectl set image deployment/observability-debug-agent observability-debug-agent=docker.io/$NS/observability-debug-agent:$TAG -n observability
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/product -n ecommerce --timeout=300s
+          kubectl rollout status deployment/images -n ecommerce --timeout=300s
+          kubectl rollout status deployment/ecommerce -n ecommerce --timeout=300s
+          kubectl rollout status deployment/prometheus -n observability --timeout=300s
+          kubectl rollout status deployment/loki -n observability --timeout=300s
+          kubectl rollout status deployment/grafana -n observability --timeout=300s
+          kubectl rollout status deployment/observability-server -n observability --timeout=300s
+          kubectl rollout status deployment/observability-debug-agent -n observability --timeout=300s
+
+      - name: Summary
+        if: always()
+        run: |
+          EXTERNAL_IP="$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)"
+          {
+            echo "## GKE deployment"
+            echo ""
+            echo "Image tag: \`${{ steps.tag.outputs.tag }}\`"
+            echo "External IP: \`${EXTERNAL_IP:-pending}\`"
+            if [ -n "$EXTERNAL_IP" ]; then
+              echo ""
+              echo "- Ecommerce API: http://$EXTERNAL_IP/ecommerceApp/ecommerce-service/ecommerceProducts"
+              echo "- Agent chat UI: http://$EXTERNAL_IP/observability"
+            fi
+            echo ""
+            echo "### Pods (ecommerce)"
+            echo '```'
+            kubectl get pods -n ecommerce
+            echo '```'
+            echo "### Pods (observability)"
+            echo '```'
+            kubectl get pods -n observability
+            echo '```'
+            echo "### Ingress"
+            echo '```'
+            kubectl get ingress -A
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

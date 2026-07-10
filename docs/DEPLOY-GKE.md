@@ -16,6 +16,13 @@ but adapts the two things that are cloud-specific: the **ingress** and the **ima
 > [deploy-gke.sh](../deploy-gke.sh) for all env-var overrides (including
 > `IMAGE_MODE=artifact-registry` to build+push your own images). The manual runbook
 > below is the same flow, step by step.
+>
+> **From CI?** The GitHub Actions workflow
+> [.github/workflows/gke_build.yaml](../.github/workflows/gke_build.yaml) does the same
+> build+push+deploy on push to `master` (or via *Run workflow*). It needs the repo
+> secrets `DOCKER_USERNAME`, `DOCKER_PASSWORD`, and `GCP_SA_KEY` (a service-account
+> JSON key with `roles/container.developer`), and the `GCP_PROJECT_ID`/`GKE_CLUSTER`/
+> `GKE_ZONE` env values at the top of the file. The cluster must already exist.
 
 ---
 
