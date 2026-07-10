@@ -32,8 +32,10 @@ if errorlevel 1 goto :fail
 docker build --no-cache -t observability-server:!IMAGE_TAG! .
 if errorlevel 1 goto :fail
 
-echo [5/12] Building observability-debug-agent (API + chat UI)...
-cd /d "%ROOT_DIR%\microservices\observability-debug-agent" || goto :fail
+echo [5/12] Building observability-debug-agent-java (Spring Boot + React UI)...
+cd /d "%ROOT_DIR%\microservices\observability-debug-agent-java" || goto :fail
+call mvn clean package -DskipTests
+if errorlevel 1 goto :fail
 docker build --no-cache -t observability-debug-agent:!IMAGE_TAG! .
 if errorlevel 1 goto :fail
 
@@ -152,7 +154,7 @@ echo   curl http://localhost:8090/ecommerce-service/ecommerceProducts
 echo   http://localhost:9090
 echo   http://localhost:8092/health
 echo   http://localhost:8092          (observability chatbot UI)
-echo   http://localhost:8092/docs     (FastAPI Swagger)
+echo   http://localhost:8092/actuator  (Spring Boot Actuator)
 echo   kubectl port-forward -n observability svc/observability-server 8091:8091
 echo   http://localhost:8091/swagger-ui.html
 echo.

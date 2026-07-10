@@ -61,8 +61,10 @@ do_observability_server() {
 }
 
 do_observability_debug_agent() {
-  echo "[build] docker image observability-debug-agent:$IMAGE_TAG (API + chat UI)..."
-  cd "$ROOT_DIR/microservices/observability-debug-agent" || return 1
+  echo "[build] mvn clean package..."
+  cd "$ROOT_DIR/microservices/observability-debug-agent-java" || return 1
+  mvn clean package -DskipTests || return 1
+  echo "[build] docker image observability-debug-agent:$IMAGE_TAG (Spring Boot + React UI)..."
   docker build --no-cache -t observability-debug-agent:$IMAGE_TAG . || return 1
   cd "$ROOT_DIR" || return 1
   echo "[deploy] kubectl apply + set image..."

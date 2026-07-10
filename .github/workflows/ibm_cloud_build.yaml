@@ -75,8 +75,9 @@ jobs:
           docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-server:${{ steps.tag.outputs.tag }}
 
       - name: Build & push observability-debug-agent
-        working-directory: microservices/observability-debug-agent
+        working-directory: microservices/observability-debug-agent-java
         run: |
+          mvn clean package -DskipTests
           docker build --no-cache -t docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-debug-agent:${{ steps.tag.outputs.tag }} .
           docker push docker.io/${{ env.DOCKERHUB_NAMESPACE }}/observability-debug-agent:${{ steps.tag.outputs.tag }}
 

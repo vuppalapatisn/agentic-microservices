@@ -13,4 +13,3 @@ data:
   GRAFANA_API_BASE_URL: "http://grafana.observability.svc.cluster.local:3000"
   GRAFANA_LOKI_DATASOURCE_UID: "loki"
   GRAFANA_DASHBOARD_UID: "ecommerce-observability"
-  LANGGRAPH_DEBUG: "true"

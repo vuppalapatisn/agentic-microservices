@@ -34,8 +34,9 @@ cd "$ROOT_DIR/microservices/observability-server" || fail
 mvn clean package || fail
 docker build --no-cache -t observability-server:$IMAGE_TAG . || fail
 
-echo "[5/12] Building observability-debug-agent (API + chat UI)..."
-cd "$ROOT_DIR/microservices/observability-debug-agent" || fail
+echo "[5/12] Building observability-debug-agent-java (Spring Boot + React UI)..."
+cd "$ROOT_DIR/microservices/observability-debug-agent-java" || fail
+mvn clean package -DskipTests || fail
 docker build --no-cache -t observability-debug-agent:$IMAGE_TAG . || fail
 
 echo "[6/12] Building product-service..."
@@ -120,7 +121,7 @@ echo "  curl http://localhost:8090/ecommerce-service/ecommerceProducts"
 echo "  http://localhost:9090"
 echo "  http://localhost:8092/health"
 echo "  http://localhost:8092          (observability chatbot UI)"
-echo "  http://localhost:8092/docs     (FastAPI Swagger)"
+echo "  http://localhost:8092/actuator  (Spring Boot Actuator)"
 echo "  kubectl port-forward -n observability svc/observability-server 8091:8091"
 echo "  http://localhost:8091/swagger-ui.html"
 echo

@@ -17,7 +17,7 @@ spec:
         - name: dockerhub-registry-secret
       containers:
         - name: observability-debug-agent
-          image: docker.io/sudhavuppalapati/observability-debug-agent:latest
+          image: docker.io/sudhavuppalapati/observability-debug-agent-java:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
@@ -46,8 +46,8 @@ spec:
             periodSeconds: 15
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 300m
+              cpu: 250m
               memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1024Mi

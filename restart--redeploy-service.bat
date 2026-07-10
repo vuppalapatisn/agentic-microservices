@@ -88,8 +88,11 @@ kubectl rollout status deployment/observability-server -n observability --timeou
 exit /b %errorlevel%
 
 :do_observability_debug_agent
-echo [build] docker image observability-debug-agent:!IMAGE_TAG! ^(API + chat UI^)...
-cd /d "%ROOT_DIR%\microservices\observability-debug-agent" || exit /b 1
+echo [build] mvn clean package...
+cd /d "%ROOT_DIR%\microservices\observability-debug-agent-java" || exit /b 1
+call mvn clean package -DskipTests
+if errorlevel 1 exit /b 1
+echo [build] docker image observability-debug-agent:!IMAGE_TAG! ^(Spring Boot + React UI^)...
 docker build --no-cache -t observability-debug-agent:!IMAGE_TAG! .
 if errorlevel 1 exit /b 1
 cd /d "%ROOT_DIR%" || exit /b 1

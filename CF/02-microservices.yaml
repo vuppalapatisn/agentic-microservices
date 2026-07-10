@@ -463,7 +463,7 @@ Resources:
           Port: 8091
 
   # =========================================================================
-  # OBSERVABILITY DEBUG AGENT (Python / FastAPI)
+  # OBSERVABILITY DEBUG AGENT (Spring Boot / Java)
   # =========================================================================
 
   ObsAgentSDService:
@@ -528,7 +528,7 @@ Resources:
         Fn::Sub: ${ProjectName}-ECSTaskRoleArn
       ContainerDefinitions:
         - Name: observability-debug-agent
-          Image: sudhavuppalapati/observability-debug-agent:latest
+          Image: sudhavuppalapati/observability-debug-agent-java:latest
           RepositoryCredentials:
             CredentialsParameter: !ImportValue
               Fn::Sub: ${ProjectName}-DockerHubSecretArn
