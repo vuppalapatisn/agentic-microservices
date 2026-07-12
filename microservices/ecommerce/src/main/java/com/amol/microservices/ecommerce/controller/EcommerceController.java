@@ -4,12 +4,14 @@ import com.amol.microservices.ecommerce.assembler.ProductAssembler;
 import com.amol.microservices.ecommerce.client.CouponClient;
 import com.amol.microservices.ecommerce.entity.CouponApplyErrorResponse;
 import com.amol.microservices.ecommerce.entity.EcommerceProductResponse;
+import com.amol.microservices.ecommerce.entity.ErrorResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClientException;
 
@@ -32,6 +34,27 @@ public class EcommerceController {
     @GetMapping("/ecommerceProducts")
     public EcommerceProductResponse getAllEcommerceProducts(){
         return new EcommerceProductResponse(productAssembler.getEcommerceProducts());
+    }
+
+    @GetMapping("/ecommerceProducts/search")
+    public ResponseEntity<?> searchEcommerceProducts(@RequestParam(required = false) String q,
+                                                     @RequestParam(required = false) String category){
+        String trimmedQuery = trimToNull(q);
+        String trimmedCategory = trimToNull(category);
+        if (trimmedQuery == null && trimmedCategory == null) {
+            return ResponseEntity.badRequest()
+                    .body(new ErrorResponse("validation_error", "At least one of 'q' or 'category' must be provided"));
+        }
+        return ResponseEntity.ok(new EcommerceProductResponse(
+                productAssembler.searchEcommerceProducts(trimmedQuery, trimmedCategory)));
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @PostMapping(value = "/apply-coupon", consumes = "text/plain")

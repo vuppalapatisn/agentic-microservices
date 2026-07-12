@@ -80,6 +80,21 @@ for ns in ecommerce observability; do
   fi
 done
 
+if ! kubectl get secret postgres-secret -n ecommerce >/dev/null 2>&1; then
+  echo
+  echo "WARNING: secret 'postgres-secret' not found in namespace 'ecommerce'."
+  echo "Postgres and the product/images pods will not start until you create it:"
+  echo "  kubectl create secret generic postgres-secret --from-literal=POSTGRES_PASSWORD=your-strong-password -n ecommerce"
+  echo
+fi
+
+echo "[8/9] Deploying Postgres (configmap, pvc, service, deployment)..."
+kubectl apply -f "$ROOT_DIR/k8s/postgres/configmap.yaml" || fail
+kubectl apply -f "$ROOT_DIR/k8s/postgres/pvc.yaml" || fail
+kubectl apply -f "$ROOT_DIR/k8s/postgres/service.yaml" || fail
+kubectl apply -f "$ROOT_DIR/k8s/postgres/deployment.yaml" || fail
+kubectl rollout status deployment/postgres -n ecommerce || fail
+
 kubectl apply -f "$ROOT_DIR/k8s/product" || fail
 kubectl apply -f "$ROOT_DIR/k8s/images" || fail
 kubectl apply -f "$ROOT_DIR/k8s/ecommerce" || fail

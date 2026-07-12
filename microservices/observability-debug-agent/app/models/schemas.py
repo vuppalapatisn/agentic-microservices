@@ -37,6 +37,12 @@ class MetricFinding(BaseModel):
     value: float
 
 
+class LatencyPercentileSeries(BaseModel):
+    label: str
+    quantile: float
+    points: list[MetricFinding] = []
+
+
 class CorrelationFinding(BaseModel):
     probable_root_cause: str
     evidence: list[str]
@@ -53,6 +59,7 @@ class InvestigationContext(BaseModel):
     heap_max_metrics: list[MetricFinding] = []
     thread_metrics: list[MetricFinding]
     request_rate_metrics: list[MetricFinding]
+    latency_percentiles: list[LatencyPercentileSeries] = []
     heap_usage_percent_query: bool = False
 
 

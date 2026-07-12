@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.amol.microservices</groupId>
 	<artifactId>ecommerce</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.1.0-SNAPSHOT</version>
 	<name>ecommerce</name>
 	<description>Service to give final product details for ecommerce UI consumption</description>
 

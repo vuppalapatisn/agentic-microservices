@@ -14,7 +14,9 @@ I have used Spring AI for MCP server and langgraph for the agent. I use OpenAI A
 
 ## Demo use cases
 
-Slow requests, stack trace details from logs, and heap usage %: **[demo-usecases.md](demo-usecases.md)**
+Slow requests, stack trace details from logs, heap usage %, and **P90/P95/P99 latency** analysis
+plus **memory-based autoscaling** driven by an Amazon-style product **search**:
+**[demo-usecases.md](demo-usecases.md)**
 
 
 ## Prerequisites
@@ -38,6 +40,7 @@ restart--redeploy-service.bat --help                        # list all service n
 | Service | URL |
 |---------|-----|
 | Ecommerce API | http://localhost:8090/ecommerce-service/ecommerceProducts |
+| Ecommerce search | http://localhost:8090/ecommerce-service/ecommerceProducts/search?q=phone |
 | Grafana | http://localhost:3000 |
 | Prometheus | http://localhost:9090 |
 | observability-debug-agent (chat UI) | http://localhost:8092 |
@@ -48,13 +51,18 @@ Chat UI setup and troubleshooting: **[chatbot-ui-readme.md](chatbot-ui-readme.md
 
 Architecture (Mermaid): **[architecture-diagram.md](architecture-diagram.md)**
 
-## Before first investigate call
+## Before first start
 
-Create OpenAI secret once in namespace `observability` (survives `start.bat`). **cmd.exe** — single line:
+Create two secrets once (both survive `start.bat`). **cmd.exe** — single line each:
 
 ```bat
+kubectl create secret generic postgres-secret --from-literal=POSTGRES_PASSWORD=your-strong-password -n ecommerce
 kubectl create secret generic observability-debug-agent-secret --from-literal=OPENAI_API_KEY=your-key-here -n observability
 ```
+
+`postgres-secret` is required before `start.bat` — the `postgres` service and the product/images
+services (which now use PostgreSQL) won't start without it. The OpenAI secret is needed before the
+first `/api/v1/investigate` call.
 
 ## Developer guide
 

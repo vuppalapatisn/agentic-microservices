@@ -1,6 +1,12 @@
 from statistics import mean
 
-from app.models.schemas import CorrelationFinding, InvestigationContext, LogFinding, MetricFinding
+from app.models.schemas import (
+    CorrelationFinding,
+    InvestigationContext,
+    LatencyPercentileSeries,
+    LogFinding,
+    MetricFinding,
+)
 from app.util.formatting import format_bytes, format_count, format_percent, format_rps
 
 
@@ -56,6 +62,7 @@ class CorrelationEngine:
             scores["traffic overload"] += 2
 
         self._append_heap_telemetry(context, evidence)
+        self._append_latency_telemetry(context, evidence, tags, scores)
 
         if heap_peak and heap_avg and heap_peak > heap_avg * 1.5:
             tags.append("heap-spike")
@@ -130,6 +137,32 @@ class CorrelationEngine:
             evidence.append(
                 f"Heap used averaged {format_bytes(heap_avg)} (peak {format_bytes(heap_peak)})."
             )
+
+    def _append_latency_telemetry(
+        self,
+        context: InvestigationContext,
+        evidence: list[str],
+        tags: list[str],
+        scores: dict[str, int],
+    ) -> None:
+        if not context.latency_percentiles:
+            return
+        by_label = {series.label: series for series in context.latency_percentiles}
+        parts: list[str] = []
+        p99_peak: float | None = None
+        for label in ("http_latency_p90", "http_latency_p95", "http_latency_p99"):
+            series = by_label.get(label)
+            if series and series.points:
+                peak = self._peak(series.points)
+                if peak is not None:
+                    parts.append(f"{label.rsplit('_', 1)[-1].upper()} peaked at {peak * 1000:.0f} ms")
+                    if label == "http_latency_p99":
+                        p99_peak = peak
+        if parts:
+            evidence.append("HTTP latency percentiles — " + ", ".join(parts) + ".")
+        if p99_peak is not None and p99_peak >= 1.0:
+            tags.append("latency-tail-spike")
+            scores["resource saturation"] += 2
 
     @staticmethod
     def _add_log_error_evidence(

@@ -1,5 +1,6 @@
 package com.amol.microservices.observability.mcp;
 
+import com.amol.microservices.observability.dto.LatencyPercentilesResponseDto;
 import com.amol.microservices.observability.dto.LogsResponseDto;
 import com.amol.microservices.observability.dto.MetricsResponseDto;
 import com.amol.microservices.observability.dto.ServicesResponseDto;
@@ -69,6 +70,14 @@ public class ObservabilityTools {
         Instant end = parseOrNull(input.endTime());
         validateMetricsInput(input.serviceName(), start, end, input.stepSeconds());
         return observabilityService.getRequestRateMetrics(input.serviceName(), start, end, input.stepSeconds());
+    }
+
+    @Tool(name = "get_latency_percentiles", description = "Get HTTP request latency percentiles (p50, p90, p95, p99) in seconds for a service within a time range")
+    public LatencyPercentilesResponseDto getLatencyPercentiles(MetricsInput input) {
+        Instant start = parseOrNull(input.startTime());
+        Instant end = parseOrNull(input.endTime());
+        validateMetricsInput(input.serviceName(), start, end, input.stepSeconds());
+        return observabilityService.getLatencyPercentiles(input.serviceName(), start, end, input.stepSeconds());
     }
 
     @Tool(name = "list_observable_services", description = "List observable services")

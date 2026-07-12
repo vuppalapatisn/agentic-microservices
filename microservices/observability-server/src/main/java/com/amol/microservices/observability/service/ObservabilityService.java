@@ -2,16 +2,22 @@ package com.amol.microservices.observability.service;
 
 import com.amol.microservices.observability.client.LokiClient;
 import com.amol.microservices.observability.client.PrometheusClient;
+import com.amol.microservices.observability.dto.LatencyPercentilesResponseDto;
 import com.amol.microservices.observability.dto.LogsResponseDto;
 import com.amol.microservices.observability.dto.MetricsResponseDto;
+import com.amol.microservices.observability.dto.PercentileSeriesDto;
 import com.amol.microservices.observability.dto.ServicesResponseDto;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class ObservabilityService {
+
+    /** Percentiles reported by {@link #getLatencyPercentiles}, from median to tail. */
+    private static final double[] LATENCY_QUANTILES = {0.50, 0.90, 0.95, 0.99};
 
     private final LokiClient lokiClient;
     private final PrometheusClient prometheusClient;
@@ -52,6 +58,15 @@ public class ObservabilityService {
                 start,
                 end,
                 stepSeconds);
+    }
+
+    public LatencyPercentilesResponseDto getLatencyPercentiles(String serviceName, Instant start, Instant end, Integer stepSeconds) {
+        List<PercentileSeriesDto> series = new ArrayList<>();
+        for (double quantile : LATENCY_QUANTILES) {
+            MetricsResponseDto response = prometheusClient.queryLatencyPercentile(quantile, serviceName, start, end, stepSeconds);
+            series.add(new PercentileSeriesDto(response.metric(), quantile, response.points()));
+        }
+        return new LatencyPercentilesResponseDto(serviceName, series);
     }
 
     public ServicesResponseDto listObservableServices() {

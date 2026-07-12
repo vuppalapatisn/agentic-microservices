@@ -8,7 +8,7 @@ import httpx
 from app.config.settings import Settings
 from app.logging.json_logger import get_logger
 from app.middleware.correlation import CORRELATION_HEADER, get_correlation_id
-from app.models.schemas import LogFinding, MetricFinding
+from app.models.schemas import LatencyPercentileSeries, LogFinding, MetricFinding
 
 
 logger = get_logger("observability-debug-agent.mcp")
@@ -122,6 +122,15 @@ class ObservabilityAgentClient:
             params={"startTime": start_time, "endTime": end_time, "stepSeconds": step_seconds},
         )
         return [MetricFinding.model_validate(item) for item in payload.get("points", [])]
+
+    async def get_latency_percentiles(
+        self, service_name: str, start_time: str, end_time: str, step_seconds: int
+    ) -> list[LatencyPercentileSeries]:
+        payload = await self._get_json(
+            f"/api/observability/metrics/latency-percentiles/{service_name}",
+            params={"startTime": start_time, "endTime": end_time, "stepSeconds": step_seconds},
+        )
+        return [LatencyPercentileSeries.model_validate(item) for item in payload.get("percentiles", [])]
 
     def _request_headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}

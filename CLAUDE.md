@@ -34,9 +34,14 @@ by autonomously gathering logs and metrics and reasoning over them with an LLM.
 Two Kubernetes namespaces:
 
 - **`ecommerce`** — the application under observation:
-  - `ecommerce` — aggregator API; calls `product` and `images`; hosts the coupon endpoint.
-  - `product` — product catalog (H2 in-memory, seeded by `schema.sql` + `data.sql`).
-  - `images` — image metadata (H2 in-memory, seeded).
+  - `ecommerce` — aggregator API; calls `product` and `images`; hosts the coupon endpoint and a
+    keyword search (`/ecommerceProducts/search`) that fans out to product + images.
+  - `product` — product catalog (PostgreSQL `productsdb`, seeded by `schema-postgresql.sql` +
+    `data-postgresql.sql`) with `category`/`brand`/`stockQuantity`/`rating` fields and
+    keyword/category search (`/products/search`). Tests use H2 (`schema-h2.sql`/`data-h2.sql`).
+  - `images` — image metadata (PostgreSQL `imagesdb`, seeded); tests use H2.
+  - `postgres` — PostgreSQL 16 backing product + images (one instance, two databases; PVC-backed).
+    Non-secret config via ConfigMap (`postgres-config`), password via the `postgres-secret` Secret.
   - `ingress` — routes external traffic.
 - **`observability`** — the data plane and the agentic layer:
   - `prometheus` (metrics), `loki` (logs), `promtail` (log shipper DaemonSet), `grafana` (dashboards).
@@ -89,6 +94,9 @@ See [architecture-diagram.md](architecture-diagram.md) for the Mermaid diagram a
 ### Infrastructure
 - **Docker** — multi-stage, multi-architecture images (`linux/amd64`, `linux/arm64`).
 - **Kubernetes** — Docker Desktop (local) and IBM Cloud Kubernetes Service / IKS (remote).
+  Memory-based `HorizontalPodAutoscaler`s (`autoscaling/v2`) for product/images/ecommerce
+  (`k8s/<svc>/hpa.yaml`) — inert until a metrics-server is installed (see DEV-Readme).
+- **Database** — PostgreSQL 16 (`postgres` service, PVC-backed) for product + images runtime; H2 for tests only.
 - **Observability stack** — Prometheus, Loki, Promtail, Grafana (self-hosted manifests in `k8s/observability`).
 - **CI/CD** — GitHub Actions (`.github/workflows`).
 - **Registry** — Docker Hub.
@@ -153,7 +161,7 @@ See [architecture-diagram.md](architecture-diagram.md) for the Mermaid diagram a
 ### Inside the MCP server (`microservices/observability-server/.../observability/`)
 | Package | Responsibility |
 |---------|---------------|
-| `mcp/` | `ObservabilityTools` (`@Tool` methods), `McpConfiguration` |
+| `mcp/` | `ObservabilityTools` (`@Tool` methods incl. `get_latency_percentiles` for P50/P90/P95/P99), `McpConfiguration` |
 | `client/` | `PrometheusClient`, `LokiClient` |
 | `service/` | `ObservabilityService` — orchestrates clients, shapes DTOs |
 | `controller/` | REST endpoints mirroring the tools |
@@ -239,10 +247,15 @@ restart--redeploy-service.bat --help        # list valid service names
 ./restart--redeploy-service.sh <service>
 ```
 
-**One-time secret** (required before the first `/api/v1/investigate` call; survives restarts):
+**One-time secrets** (required; survive restarts):
 ```bash
+# OpenAI key for the agent (before the first /api/v1/investigate call)
 kubectl create secret generic observability-debug-agent-secret \
   --from-literal=OPENAI_API_KEY=your-key-here -n observability
+
+# Postgres password for product + images (before start.bat / start.sh)
+kubectl create secret generic postgres-secret \
+  --from-literal=POSTGRES_PASSWORD=your-strong-password -n ecommerce
 ```
 
 **Local URLs:**

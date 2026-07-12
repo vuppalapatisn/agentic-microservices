@@ -6,6 +6,7 @@ name: IBM Cloud - Build, Push & Deploy
 #   - point kubectl at the IBM Cloud Kubernetes Service (IKS) cluster
 #   - apply the ecommerce/observability namespaces
 #   - warn if the dockerhub-registry-secret pull secret is missing
+#   - deploy Postgres (configmap, pvc, service, deployment) and wait for it
 #   - apply the service manifests (product, images, ecommerce, ingress,
 #     the observability stack, observability-server, observability-debug-agent)
 #   - kubectl set image each deployment to the freshly pushed tag
@@ -17,11 +18,13 @@ name: IBM Cloud - Build, Push & Deploy
 #   DOCKER_PASSWORD     Docker Hub access token (same secret used by docker_build.yaml)
 #   IBM_CLOUD_API_KEY   IBM Cloud IAM API key with access to the target cluster
 #
-# Prerequisite (one-time, not automated here): the dockerhub-registry-secret
-# image pull secret must already exist in both the ecommerce and
-# observability namespaces — see k8s/dockerhub-secret.yaml for the exact
-# kubectl create secret command. Without it, pods will sit in
-# ImagePullBackOff and the rollout status steps below will time out.
+# Prerequisites (one-time, not automated here):
+#   - the dockerhub-registry-secret image pull secret in both the ecommerce and
+#     observability namespaces — see k8s/dockerhub-secret.yaml. Without it, pods
+#     sit in ImagePullBackOff and the rollout status steps below time out.
+#   - the postgres-secret Secret (key POSTGRES_PASSWORD) in the ecommerce
+#     namespace — see k8s/postgres/secret-example.yaml. Without it, Postgres and
+#     the product/images pods will not start.
 # ---------------------------------------------------------------------------
 
 on:
@@ -32,6 +35,7 @@ on:
     paths:
       - "microservices/**"
       - "k8s/namespace.yaml"
+      - "k8s/postgres/**"
       - "k8s/observability/namespace.yaml"
       - ".github/workflows/ibm_cloud_build.yaml"
   workflow_dispatch: {}
@@ -125,6 +129,17 @@ jobs:
               echo "::warning::secret 'dockerhub-registry-secret' not found in namespace '$ns'. Pods will fail to pull images (ImagePullBackOff) until you create it — see k8s/dockerhub-secret.yaml."
             fi
           done
+
+      - name: Deploy Postgres
+        run: |
+          if ! kubectl get secret postgres-secret -n ecommerce >/dev/null 2>&1; then
+            echo "::warning::secret 'postgres-secret' not found in namespace 'ecommerce'. Postgres and the product/images pods will not start until you create it — see k8s/postgres/secret-example.yaml."
+          fi
+          kubectl apply -f k8s/postgres/configmap.yaml
+          kubectl apply -f k8s/postgres/pvc.yaml
+          kubectl apply -f k8s/postgres/service.yaml
+          kubectl apply -f k8s/postgres/deployment.yaml
+          kubectl rollout status deployment/postgres -n ecommerce --timeout=300s
 
       - name: Apply application manifests
         run: |

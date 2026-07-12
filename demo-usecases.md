@@ -58,7 +58,7 @@ Open [http://localhost:8092](http://localhost:8092) and use one of:
 
 ### Expected result
 
-- Evidence mentions **request rate**, **heap**, and/or **threads** (not logs-only).
+- Evidence mentions **request rate**, **heap**, **threads**, and **latency percentiles (P90/P95/P99)** (not logs-only).
 - `probableRootCause` often **resource saturation** or **traffic overload**.
 - Reply includes **Grafana Explore** (when correlation id is present) **and** **metrics dashboard** links.
 
@@ -153,12 +153,49 @@ PromQL used internally: `sum(jvm_memory_used_bytes)` and `sum(jvm_memory_max_byt
 
 ---
 
+## Use case 4 — Latency percentiles (P90/P95/P99) under search load
+
+**Goal:** Drive Amazon-style search traffic across services, then have the agent report tail latency
+(P90/P95/P99) and correlate it with heap / threads / request-rate — while memory-based autoscaling
+adds pods.
+
+### Step 1 — (optional) enable autoscaling
+
+Install metrics-server (see [DEV-Readme.md](DEV-Readme.md)) and watch the HPAs:
+
+```powershell
+kubectl get hpa -n ecommerce -w
+```
+
+### Step 2 — Generate search load
+
+```powershell
+python scripts/simulate_traffic_spike.py --search-terms "phone,laptop,shoes,coffee,watch"
+```
+
+Each request fans out ecommerce → product → images, with the correlation id propagated across all three.
+
+### Step 3 — Investigate in chat
+
+- `What are the P99 and P95 latencies for the ecommerce service in the last 15 minutes?`
+- `Why is the ecommerce service slow?` (latency percentiles are part of the full metrics fetch)
+
+### Expected result
+
+- Evidence includes a **HTTP latency percentiles — P90 …, P95 …, P99 …** line (in ms).
+- Tail latency ≥ 1s nudges `probableRootCause` toward **resource saturation**.
+- Metrics dashboard link present. Equivalent Grafana query:
+  `histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="ecommerce"}[1m])) by (le))`.
+- With metrics-server installed, `kubectl get hpa -n ecommerce` shows replicas scaling 1 → up to 4.
+
+---
+
 ## Quick reference — chat vs routing
 
 
 | If your query contains…                                         | Logs fetched? | Metrics fetched?               |
 | --------------------------------------------------------------- | ------------- | ------------------------------ |
-| `slow`, `slowness`, `latency`, `correlation id` (investigation) | Yes           | Yes (full: heap, threads, RPS) |
+| `slow`, `slowness`, `latency`, `correlation id` (investigation) | Yes           | Yes (full: heap, threads, RPS, latency P90/P95/P99) |
 | `error`, `stack`, `details`, `coupon` (no slow/latency)         | Yes           | No                             |
 | `heap` + `usage` / `how much` / `%` (no slow/error words)       | No            | Yes (heap used + max only)     |
 

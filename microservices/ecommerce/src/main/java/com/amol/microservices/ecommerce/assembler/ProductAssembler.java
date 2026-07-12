@@ -7,9 +7,11 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * @author Amol Limaye
@@ -25,18 +27,36 @@ public class ProductAssembler {
 
     private static final String PRODUCT_SERVICE_ENDPOINT = "/product-service/products";
 
+    private static final String PRODUCT_SEARCH_ENDPOINT = "/product-service/products/search";
+
     private static final String IMAGE_SERVICE_ENDPOINT = "/image-service/images";
 
     public List<EcommerceProduct> getEcommerceProducts(){
         ResponseEntity<ProductResponse> productResponse = restTemplate.exchange(
                 getServiceURL(externalConfig.getProductServiceBaseUrl(), PRODUCT_SERVICE_ENDPOINT),
                 HttpMethod.GET,null,ProductResponse.class);
-        ResponseEntity<ImageResponse> imageResponse = null;
-        if(externalConfig.getUseImages()) {
-            imageResponse = restTemplate.exchange(getServiceURL(externalConfig.getImagesServiceBaseUrl(), IMAGE_SERVICE_ENDPOINT),
-                    HttpMethod.GET, null, ImageResponse.class);
+        return mergeProductData(productResponse, fetchImages());
+    }
+
+    public List<EcommerceProduct> searchEcommerceProducts(String q, String category){
+        String searchUrl = UriComponentsBuilder
+                .fromHttpUrl(getServiceURL(externalConfig.getProductServiceBaseUrl(), PRODUCT_SEARCH_ENDPOINT))
+                .queryParamIfPresent("q", Optional.ofNullable(q))
+                .queryParamIfPresent("category", Optional.ofNullable(category))
+                .encode()
+                .build()
+                .toUriString();
+        ResponseEntity<ProductResponse> productResponse = restTemplate.exchange(
+                searchUrl, HttpMethod.GET, null, ProductResponse.class);
+        return mergeProductData(productResponse, fetchImages());
+    }
+
+    private ResponseEntity<ImageResponse> fetchImages(){
+        if(!externalConfig.getUseImages()) {
+            return null;
         }
-        return mergeProductData(productResponse,imageResponse);
+        return restTemplate.exchange(getServiceURL(externalConfig.getImagesServiceBaseUrl(), IMAGE_SERVICE_ENDPOINT),
+                HttpMethod.GET, null, ImageResponse.class);
     }
 
     private String getServiceURL(String serviceBaseUrl, String serviceEndpoint){
@@ -52,7 +72,9 @@ public class ProductAssembler {
                 Image image = imageResponse.getBody().getImages().
                         stream().filter(i -> product.getProductId() == i.getProductId())
                         .findAny().orElse(null);
-                ecommerceProduct.setImage(image.getPath());
+                if (image != null) {
+                    ecommerceProduct.setImage(image.getPath());
+                }
             }
             ecommerceProducts.add(ecommerceProduct);
         }

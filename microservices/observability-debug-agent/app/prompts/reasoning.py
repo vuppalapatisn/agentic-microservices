@@ -30,6 +30,7 @@ def build_reasoning_messages(payload: dict, mode: str = "default") -> list[dict]
                 "Use only the structured findings provided. "
                 "Keep heap/memory sizes and percentages exactly as given. "
                 "Keep request rates exactly as given (rps). "
+                "Keep latency percentile values (p90/p95/p99) exactly as given (ms). "
                 "Thread counts are whole numbers; preserve 'average' and 'peak' wording from evidence. "
                 "When evidence includes heap usage, mention it in the summary. "
                 "Respond concisely with a probable root cause and supporting evidence."
