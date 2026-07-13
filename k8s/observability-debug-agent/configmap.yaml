@@ -4,7 +4,11 @@ metadata:
   name: observability-debug-agent-config
   namespace: observability
 data:
-  OPENAI_MODEL: "gpt-4.1-mini"
+  # Using Google Gemini via its OpenAI-compatible endpoint. The API key (a Google AI
+  # Studio key) is supplied by the observability-debug-agent-secret Secret. Set
+  # OPENAI_BASE_URL to "" and OPENAI_MODEL to an OpenAI model to switch back to OpenAI.
+  OPENAI_MODEL: "gemini-2.0-flash"
+  OPENAI_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai/"
   OBSERVABILITY_AGENT_BASE_URL: "http://observability-server.observability.svc.cluster.local:8091"
   REQUEST_TIMEOUT_SECONDS: "10"
   STARTUP_VALIDATION_RETRIES: "30"

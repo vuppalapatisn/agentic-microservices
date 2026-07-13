@@ -5,7 +5,12 @@ from app.config.settings import Settings
 
 class ReasoningService:
     def __init__(self, settings: Settings) -> None:
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        # base_url lets the agent target any OpenAI-compatible endpoint (e.g. Gemini's
+        # /v1beta/openai/). Empty base_url falls back to the OpenAI default.
+        self.client = AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url or None,
+        )
         self.model = settings.openai_model
 
     async def summarize(self, messages: list[dict]) -> str:
