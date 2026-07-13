@@ -1,5 +1,6 @@
 package com.amol.microservices.observability.controller;
 
+import com.amol.microservices.observability.dto.LatencyPercentilesResponseDto;
 import com.amol.microservices.observability.dto.LogsResponseDto;
 import com.amol.microservices.observability.dto.MetricsResponseDto;
 import com.amol.microservices.observability.dto.ServicesResponseDto;
@@ -121,6 +122,21 @@ public class ObservabilityController {
         validateRange(start, end);
         if (stepSeconds != null && stepSeconds <= 0) throw new IllegalArgumentException("stepSeconds must be > 0");
         MetricsResponseDto resp = service.getRequestRateMetrics(serviceName, start, end, stepSeconds);
+        return ResponseEntity.ok(resp);
+    }
+
+    @Operation(summary = "Get HTTP latency percentiles (p50/p90/p95/p99, seconds) for a service")
+    @GetMapping("/metrics/latency-percentiles/{serviceName}")
+    public ResponseEntity<LatencyPercentilesResponseDto> latencyPercentiles(
+            @Parameter(example = "ecommerce-service") @PathVariable @NotBlank String serviceName,
+                                                                            @RequestParam(required = false) String startTime,
+                                                                            @RequestParam(required = false) String endTime,
+                                                                            @RequestParam(required = false) Integer stepSeconds) {
+        Instant start = parseOrNull(startTime);
+        Instant end = parseOrNull(endTime);
+        validateRange(start, end);
+        if (stepSeconds != null && stepSeconds <= 0) throw new IllegalArgumentException("stepSeconds must be > 0");
+        LatencyPercentilesResponseDto resp = service.getLatencyPercentiles(serviceName, start, end, stepSeconds);
         return ResponseEntity.ok(resp);
     }
 

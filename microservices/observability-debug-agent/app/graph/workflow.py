@@ -16,6 +16,7 @@ from app.models.schemas import (
     InvestigationContext,
     InvestigationRequest,
     InvestigationResponse,
+    LatencyPercentileSeries,
     LogFinding,
     MetricFinding,
 )
@@ -59,12 +60,14 @@ class InvestigationState(TypedDict, total=False):
     fetch_heap_max_metrics: bool
     fetch_thread_metrics: bool
     fetch_request_rate: bool
+    fetch_latency_percentiles: bool
     logs: list[LogFinding]
     error_logs: list[LogFinding]
     heap_metrics: list[MetricFinding]
     heap_max_metrics: list[MetricFinding]
     thread_metrics: list[MetricFinding]
     request_rate_metrics: list[MetricFinding]
+    latency_percentiles: list[LatencyPercentileSeries]
     correlation: CorrelationFinding
     summary: str
     probable_root_cause: str
@@ -92,6 +95,7 @@ class InvestigationWorkflow:
         graph.add_node("fetch_heap_metrics_node", self.fetch_heap_metrics_node)
         graph.add_node("fetch_thread_metrics_node", self.fetch_thread_metrics_node)
         graph.add_node("fetch_request_rate_node", self.fetch_request_rate_node)
+        graph.add_node("fetch_latency_metrics_node", self.fetch_latency_metrics_node)
         graph.add_node("correlation_node", self.correlation_node)
         graph.add_node("reasoning_node", self.reasoning_node)
         graph.add_node("response_node", self.response_node)
@@ -134,7 +138,8 @@ class InvestigationWorkflow:
             },
         )
         graph.add_edge("fetch_thread_metrics_node", "fetch_request_rate_node")
-        graph.add_edge("fetch_request_rate_node", "correlation_node")
+        graph.add_edge("fetch_request_rate_node", "fetch_latency_metrics_node")
+        graph.add_edge("fetch_latency_metrics_node", "correlation_node")
         graph.add_edge("correlation_node", "reasoning_node")
         graph.add_edge("reasoning_node", "response_node")
         graph.add_edge("response_node", END)
@@ -370,6 +375,14 @@ class InvestigationWorkflow:
             )
         return {"request_rate_metrics": metrics}
 
+    async def fetch_latency_metrics_node(self, state: InvestigationState) -> InvestigationState:
+        latency_percentiles: list[LatencyPercentileSeries] = []
+        if state.get("fetch_latency_percentiles"):
+            latency_percentiles = await self.client.get_latency_percentiles(
+                state["service_name"], state["start_time"], state["end_time"], 30
+            )
+        return {"latency_percentiles": latency_percentiles}
+
     async def correlation_node(self, state: InvestigationState) -> InvestigationState:
         context = InvestigationContext(
             service_name=state["service_name"],
@@ -382,6 +395,7 @@ class InvestigationWorkflow:
             heap_max_metrics=state.get("heap_max_metrics", []),
             thread_metrics=state.get("thread_metrics", []),
             request_rate_metrics=state.get("request_rate_metrics", []),
+            latency_percentiles=state.get("latency_percentiles", []),
             heap_usage_percent_query=bool(state.get("heap_usage_percent_query")),
         )
         correlation = self.correlation_engine.correlate(context)
@@ -429,6 +443,9 @@ class InvestigationWorkflow:
                 max_avg = self.correlation_engine._average(heap_max_metrics)
                 if used_avg is not None and max_avg is not None and max_avg > 0:
                     prompt_payload["heapUsagePercentAverage"] = format_percent((used_avg / max_avg) * 100)
+            latency_summary = self._summarize_latency(state.get("latency_percentiles", []))
+            if latency_summary:
+                prompt_payload["latencyPercentilesPeakMs"] = latency_summary
 
         summary = await self.reasoning_service.summarize(build_reasoning_messages(prompt_payload, mode=mode))
         return {
@@ -475,6 +492,18 @@ class InvestigationWorkflow:
             "grafana_dashboard_url": dashboard_url,
             "summary": summary,
         }
+
+    @staticmethod
+    def _summarize_latency(series: list[LatencyPercentileSeries]) -> dict[str, str]:
+        by_label = {item.label: item for item in series}
+        summary: dict[str, str] = {}
+        for label in ("http_latency_p90", "http_latency_p95", "http_latency_p99"):
+            found = by_label.get(label)
+            if found and found.points:
+                peak = max((point.value for point in found.points), default=None)
+                if peak is not None:
+                    summary[label.rsplit("_", 1)[-1]] = f"{peak * 1000:.0f} ms"
+        return summary
 
     @staticmethod
     def _parse_iso_time(value: str) -> datetime:

@@ -77,16 +77,19 @@ def classify_investigation(query: str) -> dict[str, bool]:
         fetch_heap_max_metrics = True
         fetch_thread_metrics = False
         fetch_request_rate = False
+        fetch_latency_percentiles = False
     elif needs_monitoring:
         fetch_heap_metrics = True
         fetch_heap_max_metrics = True
         fetch_thread_metrics = True
         fetch_request_rate = True
+        fetch_latency_percentiles = True
     else:
         fetch_heap_metrics = False
         fetch_heap_max_metrics = False
         fetch_thread_metrics = False
         fetch_request_rate = False
+        fetch_latency_percentiles = False
 
     return {
         "needs_logs": needs_logs,
@@ -98,4 +101,5 @@ def classify_investigation(query: str) -> dict[str, bool]:
         "fetch_heap_max_metrics": fetch_heap_max_metrics,
         "fetch_thread_metrics": fetch_thread_metrics,
         "fetch_request_rate": fetch_request_rate,
+        "fetch_latency_percentiles": fetch_latency_percentiles,
     }

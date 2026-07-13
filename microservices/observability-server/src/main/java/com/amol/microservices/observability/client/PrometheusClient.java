@@ -49,6 +49,41 @@ public class PrometheusClient {
         }
     }
 
+    /**
+     * Latency percentile over time via {@code histogram_quantile} on the http.server.requests
+     * histogram buckets. Non-finite points (NaN when a bucket has no samples in the window) are
+     * dropped so the JSON response stays valid.
+     */
+    public MetricsResponseDto queryLatencyPercentile(double quantile, String serviceName, Instant start, Instant end, Integer stepSeconds) {
+        String metricLabel = percentileLabel(quantile);
+        if (properties.getPrometheus().getBaseUrl() == null || properties.getPrometheus().getBaseUrl().isBlank()) {
+            return new MetricsResponseDto(serviceName, metricLabel, List.of());
+        }
+        int step = stepSeconds != null ? stepSeconds : defaultStepSeconds(start, end);
+        String query = buildLatencyPercentileQuery(quantile, serviceName);
+        Instant rangeStart = start != null ? start : Instant.now().minusSeconds(300);
+        Instant rangeEnd = end != null ? end : Instant.now();
+        try {
+            List<MetricPointDto> points = parseMetricPoints(fetch(buildQueryRangeUrl(query, rangeStart, rangeEnd, step)))
+                    .stream()
+                    .filter(point -> Double.isFinite(point.value()))
+                    .toList();
+            return new MetricsResponseDto(serviceName, metricLabel, points);
+        } catch (Exception ex) {
+            throw new RuntimeException("Prometheus query failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    String buildLatencyPercentileQuery(double quantile, String serviceName) {
+        String jobName = toJobName(serviceName);
+        return "histogram_quantile(" + quantile
+                + ", sum(rate(http_server_requests_seconds_bucket{job=\"" + jobName + "\"}[1m])) by (le))";
+    }
+
+    private String percentileLabel(double quantile) {
+        return "http_latency_p" + (int) Math.round(quantile * 100);
+    }
+
     private String fetch(URI uri) throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)

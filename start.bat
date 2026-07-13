@@ -62,6 +62,23 @@ echo [9/12] Deploying application Kubernetes resources...
 cd /d "%ROOT_DIR%" || goto :fail
 kubectl apply -f "%ROOT_DIR%\k8s\namespace.yaml"
 if errorlevel 1 goto :fail
+kubectl get secret postgres-secret -n ecommerce >nul 2>&1
+if errorlevel 1 (
+  echo ERROR: Secret "postgres-secret" not found in namespace ecommerce.
+  echo Create it once: kubectl create secret generic postgres-secret --from-literal=POSTGRES_PASSWORD=your-strong-password -n ecommerce
+  goto :fail
+)
+echo    Deploying Postgres (configmap, pvc, service, deployment)...
+kubectl apply -f "%ROOT_DIR%\k8s\postgres\configmap.yaml"
+if errorlevel 1 goto :fail
+kubectl apply -f "%ROOT_DIR%\k8s\postgres\pvc.yaml"
+if errorlevel 1 goto :fail
+kubectl apply -f "%ROOT_DIR%\k8s\postgres\service.yaml"
+if errorlevel 1 goto :fail
+kubectl apply -f "%ROOT_DIR%\k8s\postgres\deployment.yaml"
+if errorlevel 1 goto :fail
+kubectl rollout status deployment/postgres -n ecommerce
+if errorlevel 1 goto :fail
 kubectl apply -f "%ROOT_DIR%\k8s\product"
 if errorlevel 1 goto :fail
 kubectl apply -f "%ROOT_DIR%\k8s\images"

@@ -2,11 +2,15 @@
 
 After `start.bat`. Assumes LoadBalancer → `localhost` (Docker Desktop K8s).
 
-## Secret (one-time)
+## Secrets (one-time)
 
 ```bat
 kubectl create secret generic observability-debug-agent-secret --from-literal=OPENAI_API_KEY=your-key-here -n observability
+kubectl create secret generic postgres-secret --from-literal=POSTGRES_PASSWORD=your-strong-password -n ecommerce
 ```
+
+`postgres-secret` is required before `start.bat` (Postgres and the product/images pods won't start
+without it). Both secrets survive `start.bat`/`stop.bat`.
 
 ## URLs
 
@@ -31,6 +35,23 @@ kubectl port-forward -n observability svc/observability-server 8091:8091
 
 **Product / images** (ClusterIP): `kubectl port-forward -n ecommerce svc/product-service 8090:8090` (same for `images-service`).
 
+## Postgres
+
+Product + images use a `postgres` service (PostgreSQL 16, `ecommerce` namespace) with two databases:
+`productsdb` and `imagesdb` (user `ecommerce`, password from the `postgres-secret` Secret). Data is
+PVC-backed (`postgres-data`) and survives restarts; `stop.bat`/`start.bat` preserve the PVC + Secret.
+
+```powershell
+# open a psql shell inside the pod
+kubectl exec -it -n ecommerce deploy/postgres -- psql -U ecommerce -d productsdb -c "SELECT product_id,name,category FROM product LIMIT 5;"
+kubectl exec -it -n ecommerce deploy/postgres -- psql -U ecommerce -d imagesdb   -c "SELECT product_id,path FROM image LIMIT 5;"
+# or port-forward and connect from the host
+kubectl port-forward -n ecommerce svc/postgres 5432:5432
+```
+
+Runtime uses `schema-postgresql.sql` + `data-postgresql.sql` (idempotent — safe to re-seed on the
+persistent volume). Tests use H2 via `schema-h2.sql` + `data-h2.sql` (`spring.sql.init.platform`).
+
 ## observability-debug-agent
 
 Chat UI at **[http://localhost:8092](http://localhost:8092)** → `POST /api/v1/investigate`. Optional correlation ID from `scripts/simulate_traffic_spike.py`. Local UI dev: [chatbot-ui-readme.md](chatbot-ui-readme.md).
@@ -53,6 +74,22 @@ curl -X POST http://localhost:8092/api/v1/investigate `
   -H "Content-Type: application/json" `
   -d "{\"query\": \"Why is ecommerce slow?\"}"
 ```
+
+## Product search (Amazon-style)
+
+Keyword + optional category search over an enriched catalog (`category`, `brand`, `stockQuantity`,
+`rating`). The ecommerce endpoint fans out to product → images with the correlation id propagated.
+
+```powershell
+# product service (ClusterIP — port-forward first)
+curl "http://localhost:8090/product-service/products/search?q=phone"
+curl "http://localhost:8090/product-service/products/search?category=Electronics"
+# ecommerce aggregator (adds image URLs)
+curl "http://localhost:8090/ecommerce-service/ecommerceProducts/search?q=laptop"
+```
+
+At least one of `q` / `category` is required (else **HTTP 400**). Search feeds the load generator's
+`--search-terms` mode below.
 
 ## Correlation ID (`X-Correlation-Id`)
 
@@ -102,6 +139,44 @@ sum(jvm_memory_max_bytes{job="ecommerce",area="heap"})
 
 Dashboard **Heap Space** — used vs capacity. **Request Rate** — total RPS (same query as investigate API).
 
+**Latency percentiles (P90/P95/P99)** — from the `http.server.requests` histogram buckets:
+
+```promql
+histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="ecommerce"}[1m])) by (le))
+histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job="product"}[1m])) by (le))
+```
+
+Via observability-server (returns p50/p90/p95/p99 in one call):
+
+```
+GET http://localhost:8091/api/observability/metrics/latency-percentiles/ecommerce-service
+```
+
+Or just ask the agent: *"What are the P99 and P95 latencies for the ecommerce service in the last 15 minutes?"*
+
+## Memory-based autoscaling (HPA)
+
+`HorizontalPodAutoscaler`s scale product/images/ecommerce on memory (`AverageValue` 350Mi, 1→4
+replicas; `k8s/<svc>/hpa.yaml`). They require a **metrics-server**, which is not bundled.
+
+Install on Docker Desktop (the `--kubelet-insecure-tls` flag is required locally):
+
+```powershell
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl patch deployment metrics-server -n kube-system --type=json `
+  -p '[{\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/args/-\",\"value\":\"--kubelet-insecure-tls\"}]'
+```
+
+Watch scaling while driving search load:
+
+```powershell
+kubectl get hpa -n ecommerce -w
+kubectl get pods -n ecommerce -w
+python scripts/simulate_traffic_spike.py --search-terms "phone,laptop,shoes,coffee,watch"
+```
+
+Without metrics-server the HPAs report `<unknown>/350Mi` and simply don't scale (harmless).
+
 ## Traffic spike simulation
 
 5 rps × 30s → 400 rps × 180s → hard stop. Prints `correlationId` per request for Loki correlation.
@@ -109,6 +184,8 @@ Dashboard **Heap Space** — used vs capacity. **Request Rate** — total RPS (s
 ```powershell
 pip install -r scripts/requirements.txt
 python scripts/simulate_traffic_spike.py
+# Drive the search endpoint (fans out ecommerce -> product -> images):
+python scripts/simulate_traffic_spike.py --search-terms "phone,laptop,shoes,coffee,watch"
 ```
 
 Details: [scripts/TRAFFIC_SPIKE.md](scripts/TRAFFIC_SPIKE.md)

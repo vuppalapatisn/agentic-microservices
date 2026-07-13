@@ -17,7 +17,7 @@ data:
             regex: jvm_memory_(used|max)_bytes;nonheap
             action: drop
           - source_labels: [__name__]
-            regex: jvm_memory_used_bytes|jvm_memory_max_bytes|jvm_threads_live_threads|jvm_gc_pause_seconds_count|jvm_gc_pause_seconds_sum|jvm_gc_pause_seconds_max|http_server_requests_seconds_count
+            regex: jvm_memory_used_bytes|jvm_memory_max_bytes|jvm_threads_live_threads|jvm_gc_pause_seconds_count|jvm_gc_pause_seconds_sum|jvm_gc_pause_seconds_max|http_server_requests_seconds_count|http_server_requests_seconds_sum|http_server_requests_seconds_bucket
             action: keep
       - job_name: product
         static_configs:
@@ -28,7 +28,7 @@ data:
             regex: jvm_memory_(used|max)_bytes;nonheap
             action: drop
           - source_labels: [__name__]
-            regex: jvm_memory_used_bytes|jvm_memory_max_bytes|jvm_threads_live_threads|jvm_gc_pause_seconds_count|jvm_gc_pause_seconds_sum|jvm_gc_pause_seconds_max|http_server_requests_seconds_count
+            regex: jvm_memory_used_bytes|jvm_memory_max_bytes|jvm_threads_live_threads|jvm_gc_pause_seconds_count|jvm_gc_pause_seconds_sum|jvm_gc_pause_seconds_max|http_server_requests_seconds_count|http_server_requests_seconds_sum|http_server_requests_seconds_bucket
             action: keep
       - job_name: images
         static_configs:
@@ -39,5 +39,5 @@ data:
             regex: jvm_memory_(used|max)_bytes;nonheap
             action: drop
           - source_labels: [__name__]
-            regex: jvm_memory_used_bytes|jvm_memory_max_bytes|jvm_threads_live_threads|jvm_gc_pause_seconds_count|jvm_gc_pause_seconds_sum|jvm_gc_pause_seconds_max|http_server_requests_seconds_count
+            regex: jvm_memory_used_bytes|jvm_memory_max_bytes|jvm_threads_live_threads|jvm_gc_pause_seconds_count|jvm_gc_pause_seconds_sum|jvm_gc_pause_seconds_max|http_server_requests_seconds_count|http_server_requests_seconds_sum|http_server_requests_seconds_bucket
             action: keep

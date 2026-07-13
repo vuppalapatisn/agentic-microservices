@@ -56,6 +56,17 @@ docker build --no-cache -t ecommerce:$IMAGE_TAG . || fail
 echo "[9/12] Deploying application Kubernetes resources..."
 cd "$ROOT_DIR" || fail
 kubectl apply -f "$ROOT_DIR/k8s/namespace.yaml" || fail
+if ! kubectl get secret postgres-secret -n ecommerce >/dev/null 2>&1; then
+  echo "ERROR: Secret postgres-secret not found in namespace ecommerce."
+  echo "Create it once: kubectl create secret generic postgres-secret --from-literal=POSTGRES_PASSWORD=your-strong-password -n ecommerce"
+  fail
+fi
+echo "   Deploying Postgres (configmap, pvc, service, deployment)..."
+kubectl apply -f "$ROOT_DIR/k8s/postgres/configmap.yaml" || fail
+kubectl apply -f "$ROOT_DIR/k8s/postgres/pvc.yaml" || fail
+kubectl apply -f "$ROOT_DIR/k8s/postgres/service.yaml" || fail
+kubectl apply -f "$ROOT_DIR/k8s/postgres/deployment.yaml" || fail
+kubectl rollout status deployment/postgres -n ecommerce || fail
 kubectl apply -f "$ROOT_DIR/k8s/product" || fail
 kubectl apply -f "$ROOT_DIR/k8s/images" || fail
 kubectl apply -f "$ROOT_DIR/k8s/ecommerce" || fail

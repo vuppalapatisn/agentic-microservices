@@ -19,6 +19,8 @@ Example:
     pip install -r scripts/requirements.txt
     python scripts/simulate_traffic_spike.py
     python scripts/simulate_traffic_spike.py --spike-rps 500 --spike-duration 300
+    # Drive the Amazon-style search endpoint (fans out ecommerce -> product -> images):
+    python scripts/simulate_traffic_spike.py --search-terms "phone,laptop,shoes,coffee,watch"
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import quote
 
 import aiohttp
 
@@ -79,6 +82,8 @@ class RunConfig:
     stats_interval_sec: int
     product_id_min: int
     product_id_max: int
+    search_url: str
+    search_terms: list[str] = field(default_factory=list)
 
 
 class StatsCollector:
@@ -165,6 +170,14 @@ class TrafficSpikeSimulator:
         }
         return headers, correlation_id
 
+    def _target_url(self) -> str:
+        """Aggregate endpoint by default; when --search-terms is set, hit the search endpoint
+        with a rotating keyword so the request fans out product -> images with real query load."""
+        if self.config.search_terms:
+            term = random.choice(self.config.search_terms)
+            return f"{self.config.search_url}?q={quote(term)}"
+        return self.config.url
+
     async def _one_request(self) -> None:
         assert self._session is not None
         assert self._semaphore is not None
@@ -178,7 +191,7 @@ class TrafficSpikeSimulator:
             if self._stop.is_set():
                 return
             try:
-                async with self._session.get(self.config.url, headers=headers) as response:
+                async with self._session.get(self._target_url(), headers=headers) as response:
                     await response.read()
                     status_code = str(response.status)
                     response_time_ms = (time.perf_counter() - start) * 1000
@@ -351,6 +364,17 @@ def parse_args(argv: list[str]) -> RunConfig:
     parser.add_argument("--stats-interval", type=int, default=5, help="Stats print interval (seconds)")
     parser.add_argument("--product-id-min", type=int, default=1)
     parser.add_argument("--product-id-max", type=int, default=500)
+    parser.add_argument(
+        "--search-url",
+        default="http://localhost:8090/ecommerce-service/ecommerceProducts/search",
+        help="Ecommerce search endpoint (used when --search-terms is provided)",
+    )
+    parser.add_argument(
+        "--search-terms",
+        default="",
+        help="Comma-separated search keywords; when set, traffic hits the search endpoint "
+        "(e.g. 'phone,laptop,shoes,coffee') instead of the aggregate products endpoint",
+    )
     args = parser.parse_args(argv)
 
     if args.spike_rps < 300 or args.spike_rps > 500:
@@ -370,6 +394,8 @@ def parse_args(argv: list[str]) -> RunConfig:
         stats_interval_sec=args.stats_interval,
         product_id_min=args.product_id_min,
         product_id_max=args.product_id_max,
+        search_url=args.search_url,
+        search_terms=[t.strip() for t in args.search_terms.split(",") if t.strip()],
     )
 
 

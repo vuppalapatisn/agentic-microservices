@@ -22,6 +22,10 @@ kubectl delete -f "%ROOT_DIR%\k8s\ingress" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\ecommerce" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\images" --ignore-not-found
 kubectl delete -f "%ROOT_DIR%\k8s\product" --ignore-not-found
+rem Postgres workload only; the PVC (postgres-data) and Secret (postgres-secret) are preserved.
+kubectl delete -f "%ROOT_DIR%\k8s\postgres\deployment.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\postgres\service.yaml" --ignore-not-found
+kubectl delete -f "%ROOT_DIR%\k8s\postgres\configmap.yaml" --ignore-not-found
 
 echo [4/4] Current namespace status...
 kubectl get pods -n ecommerce --ignore-not-found

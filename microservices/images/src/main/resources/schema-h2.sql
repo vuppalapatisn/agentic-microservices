@@ -3,4 +3,3 @@ CREATE TABLE image (
   product_id INT NOT NULL,
   path VARCHAR(250) NOT NULL
 );
-

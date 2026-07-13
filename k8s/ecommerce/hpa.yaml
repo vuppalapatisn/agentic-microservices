@@ -1,0 +1,35 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ecommerce
+  namespace: ecommerce
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ecommerce
+  minReplicas: 1
+  maxReplicas: 4
+  # Memory-driven autoscaling. AverageValue (absolute) rather than Utilization: the JVM's
+  # idle RSS sits close to the 256Mi request, so a utilization target would pin replicas at max.
+  # 350Mi leaves headroom above idle and scales out only when load pushes memory up.
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: AverageValue
+          averageValue: 350Mi
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 120
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60

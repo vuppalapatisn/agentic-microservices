@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: ecommerce
+data:
+  # Non-secret Postgres configuration. The password is NOT here — it lives in the
+  # `postgres-secret` Kubernetes Secret (see secret-example.yaml). Repo rules forbid
+  # secrets in ConfigMaps.
+  POSTGRES_USER: "ecommerce"
+  POSTGRES_DB: "productsdb"
+  # Keep PGDATA in a subdirectory of the mounted volume so a volume-root lost+found
+  # dir does not break initdb.
+  PGDATA: "/var/lib/postgresql/data/pgdata"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb
+  namespace: ecommerce
+data:
+  # Runs once, only when the data directory is empty (i.e. first PVC init). POSTGRES_DB
+  # already creates productsdb; this adds the second database for the images service.
+  01-create-databases.sql: |
+    CREATE DATABASE imagesdb OWNER ecommerce;

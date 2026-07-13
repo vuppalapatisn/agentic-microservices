@@ -6,7 +6,7 @@ VOLUME /tmp
 
 EXPOSE 8080
 
-ARG JAR_FILE=target/observability-server-0.0.1-SNAPSHOT.jar
+ARG JAR_FILE=target/*.jar
 
 ADD ${JAR_FILE} observability-server.jar
 RUN addgroup -S spring && adduser -S spring -G spring && chown spring:spring /observability-server.jar

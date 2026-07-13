@@ -33,7 +33,7 @@ async def lifespan(_: FastAPI):
     await client.aclose()
 
 
-app = FastAPI(title="Observability Debug Agent", version="0.0.1", lifespan=lifespan)
+app = FastAPI(title="Observability Debug Agent", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
