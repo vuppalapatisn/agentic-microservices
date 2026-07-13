@@ -16,10 +16,10 @@ public interface ProductRepository extends CrudRepository<Product,Long> {
      * "match anything" so the same query backs a keyword search, a category filter, or both.
      */
     @Query("SELECT p FROM Product p WHERE "
-            + "(:q IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%')) "
+            + "(CAST(:q AS string) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%')) "
             + "OR LOWER(p.description) LIKE LOWER(CONCAT('%', :q, '%')) "
             + "OR LOWER(p.brand) LIKE LOWER(CONCAT('%', :q, '%'))) "
-            + "AND (:category IS NULL OR LOWER(p.category) = LOWER(:category)) "
+            + "AND (CAST(:category AS string) IS NULL OR LOWER(p.category) = LOWER(:category)) "
             + "ORDER BY p.rating DESC")
     List<Product> search(@Param("q") String q, @Param("category") String category);
 }
