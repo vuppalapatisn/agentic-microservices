@@ -10,7 +10,13 @@ const SUGGESTIONS = [
 ];
 
 function newId() {
-  return crypto.randomUUID();
+  // crypto.randomUUID() only exists in a secure context (HTTPS or localhost).
+  // Fall back to a non-crypto id when served over plain HTTP so the UI still renders.
+  const c = globalThis.crypto as Crypto | undefined;
+  if (c && typeof c.randomUUID === "function") {
+    return c.randomUUID();
+  }
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export default function Chat() {
