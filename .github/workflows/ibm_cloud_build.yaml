@@ -45,6 +45,8 @@ env:
   IKS_CLUSTER_ID: d9af86th0t7ulcn7i17g
   # Chennai, India. Verify with `ibmcloud regions` if the cluster ever moves.
   IBM_CLOUD_REGION: in-che
+  # Resource group the cluster lives in (from `ibmcloud ks cluster ls`).
+  IBM_CLOUD_RESOURCE_GROUP: Default
 
 jobs:
   build-push-deploy:
@@ -112,7 +114,7 @@ jobs:
 
       - name: Log in to IBM Cloud & configure kubectl
         run: |
-          ibmcloud login --apikey "${{ secrets.IBM_CLOUD_API_KEY }}" -r "${{ env.IBM_CLOUD_REGION }}"
+          ibmcloud login --apikey "${{ secrets.IBM_CLOUD_API_KEY }}" -r "${{ env.IBM_CLOUD_REGION }}" -g "${{ env.IBM_CLOUD_RESOURCE_GROUP }}"
           ibmcloud ks cluster config --cluster "${{ env.IKS_CLUSTER_ID }}"
           echo "Current kubectl context:"
           kubectl config current-context

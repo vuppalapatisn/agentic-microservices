@@ -15,12 +15,13 @@
 #      for the exact `kubectl create secret docker-registry` command.
 #
 # Override defaults via environment variables, e.g.:
-#   IKS_CLUSTER_ID=myothercluster ./deploy-ibm-cloud.sh
+#   IKS_CLUSTER_ID=myothercluster RESOURCE_GROUP=Default ./deploy-ibm-cloud.sh
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE_TAG="$(date +%Y%m%d%H%M%S)"
 DOCKERHUB_NAMESPACE="${DOCKERHUB_NAMESPACE:-sudhavuppalapati}"
 IKS_CLUSTER_ID="${IKS_CLUSTER_ID:-d9af86th0t7ulcn7i17g}"
+RESOURCE_GROUP="${RESOURCE_GROUP:-Default}"
 
 fail() {
   echo
@@ -46,6 +47,7 @@ build_and_push() {
 }
 
 echo "[1/9] Pointing kubectl at IBM Cloud Kubernetes cluster ($IKS_CLUSTER_ID)..."
+ibmcloud target -g "$RESOURCE_GROUP" || fail
 ibmcloud ks cluster config --cluster "$IKS_CLUSTER_ID" || fail
 
 echo "[2/9] Using image tag $IMAGE_TAG, pushing to docker.io/$DOCKERHUB_NAMESPACE/*..."
