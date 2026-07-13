@@ -19,22 +19,22 @@ class ProductServiceTest {
     private final ProductService service = new ProductService(repository);
 
     @Test
-    void search_trimsBlanksToNullAndDelegates() {
-        when(repository.search("phone", null)).thenReturn(List.of(new Product()));
+    void search_trimsAndBuildsLowercasedLikePattern() {
+        when(repository.search("%phone%", null)).thenReturn(List.of(new Product()));
 
-        List<Product> result = service.search("  phone  ", "   ");
+        List<Product> result = service.search("  Phone  ", "   ");
 
         assertEquals(1, result.size());
-        verify(repository).search("phone", null);
+        verify(repository).search("%phone%", null);
     }
 
     @Test
-    void search_byCategoryOnlyIsAllowed() {
-        when(repository.search(null, "Electronics")).thenReturn(List.of());
+    void search_byCategoryOnlyIsLowercased() {
+        when(repository.search(null, "electronics")).thenReturn(List.of());
 
         service.search(null, "Electronics");
 
-        verify(repository).search(null, "Electronics");
+        verify(repository).search(null, "electronics");
     }
 
     @Test

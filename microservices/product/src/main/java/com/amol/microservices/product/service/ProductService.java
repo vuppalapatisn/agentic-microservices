@@ -34,7 +34,9 @@ public class ProductService {
         if (q != null && q.length() > MAX_QUERY_LENGTH) {
             throw new IllegalArgumentException("'q' must be at most " + MAX_QUERY_LENGTH + " characters");
         }
-        return productRepository.search(q, cat);
+        String pattern = q == null ? null : "%" + q.toLowerCase() + "%";
+        String categoryFilter = cat == null ? null : cat.toLowerCase();
+        return productRepository.search(pattern, categoryFilter);
     }
 
     private String normalize(String value) {
