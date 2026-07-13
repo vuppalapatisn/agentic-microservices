@@ -11,7 +11,7 @@ EXPOSE 8090
 
 RUN addgroup -S spring && adduser -S spring -G spring
 
-ARG JAR_FILE=target/images-0.0.1-SNAPSHOT.jar
+ARG JAR_FILE=target/*.jar
 
 ADD ${JAR_FILE} images.jar
 RUN chown spring:spring /images.jar
