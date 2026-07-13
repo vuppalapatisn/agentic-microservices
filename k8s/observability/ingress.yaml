@@ -4,18 +4,21 @@ metadata:
   name: observability-ingress
   namespace: observability
   annotations:
-    kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
-    alb.ingress.kubernetes.io/group.name: agentic-microservices
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Strip the /observability prefix before forwarding to the agent
+    # (e.g. /observability/api/v1/investigate -> /api/v1/investigate).
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
-  ingressClassName: alb
+  ingressClassName: public-iks-k8s-nginx
+  # Host-less: served on the cluster's Ingress Subdomain (see ecommerce ingress note).
   rules:
     - http:
         paths:
-          - path: /observability
-            pathType: Prefix
+          # NOTE: this exposes the agent's REST API (e.g. /observability/api/v1/investigate
+          # and /observability/health). The React chat UI assumes a root base path, so its
+          # static assets are best accessed via `kubectl port-forward svc/observability-debug-agent 8092:8092`.
+          - path: /observability(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: observability-debug-agent

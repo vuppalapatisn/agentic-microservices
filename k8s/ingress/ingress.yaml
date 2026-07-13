@@ -4,19 +4,19 @@ metadata:
   name: ecommerce-ingress
   namespace: ecommerce
   annotations:
-    kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
-    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
-    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health
-    alb.ingress.kubernetes.io/group.name: agentic-microservices
+    # IBM Cloud IKS managed nginx ALB. HTTP (no TLS) for quick testing.
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
-  ingressClassName: alb
+  # IKS public ALB. Use "private-iks-k8s-nginx" for a private ALB.
+  ingressClassName: public-iks-k8s-nginx
+  # Host-less: the ALB serves these paths on the cluster's Ingress Subdomain.
+  # Get it with:  ibmcloud ks cluster get --cluster <id> | grep "Ingress Subdomain"
+  # To pin a host instead, add `host: <ingress-subdomain>` under the rule.
   rules:
     - http:
         paths:
-          - path: /ecommerceApp
+          # Each service already has its own context-path, so no rewrite is needed.
+          - path: /ecommerce-service
             pathType: Prefix
             backend:
               service:

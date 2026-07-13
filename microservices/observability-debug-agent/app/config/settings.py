@@ -6,6 +6,9 @@ class Settings:
     def __init__(self) -> None:
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "").strip()
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip()
+        # Optional override for OpenAI-compatible providers (e.g. Gemini, Azure OpenAI).
+        # Empty means the OpenAI default endpoint.
+        self.openai_base_url = os.getenv("OPENAI_BASE_URL", "").strip()
         self.observability_agent_base_url = os.getenv(
             "OBSERVABILITY_AGENT_BASE_URL",
             "http://observability-server.observability.svc.cluster.local:8091",
