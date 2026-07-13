@@ -20,7 +20,7 @@
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE_TAG="$(date +%Y%m%d%H%M%S)"
 DOCKERHUB_NAMESPACE="${DOCKERHUB_NAMESPACE:-sudhavuppalapati}"
-IKS_CLUSTER_ID="${IKS_CLUSTER_ID:-d93v66vh0iiqv4s5rms0}"
+IKS_CLUSTER_ID="${IKS_CLUSTER_ID:-d9af86th0t7ulcn7i17g}"
 
 fail() {
   echo

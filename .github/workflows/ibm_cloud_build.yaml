@@ -42,7 +42,7 @@ on:
 
 env:
   DOCKERHUB_NAMESPACE: sudhavuppalapati
-  IKS_CLUSTER_ID: d93v66vh0iiqv4s5rms0
+  IKS_CLUSTER_ID: d9af86th0t7ulcn7i17g
   # Chennai, India. Verify with `ibmcloud regions` if the cluster ever moves.
   IBM_CLOUD_REGION: in-che
 
