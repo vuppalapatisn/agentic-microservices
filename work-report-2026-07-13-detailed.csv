@@ -1,0 +1,38 @@
+SECTION 1 — PER WORK ITEM (cost by phase + lines of code + cost per line)
+Work Item,Scan & understand ($),Diagnose/find error & guide ($),Fix code ($),Build & upload to GitHub ($),Total Cost ($),Insertions,Deletions,Lines Changed,Cost per Line ($),Commits
+1. Continue feature work,0.00,14.66,0.23,2.65,17.54,1459,75,1534,0.011,14a3897
+2. IBM Cloud deploy setup,9.85,24.22,3.45,2.63,40.15,32,25,57,0.704,604a7ff;6d7c68f;d5cdd4c
+3. Search-500 / ingress fix,3.99,17.84,0.33,1.69,23.85,24,16,40,0.596,58afcaa;c40396a
+4. Gemini provider switch,1.45,6.43,1.02,1.72,10.62,14,2,16,0.664,b6ecf9a
+5. Agent UI blank-screen fix,2.22,6.40,0.32,1.29,10.23,7,1,8,1.279,787e268
+6. GH Actions Node20 fix,2.28,3.90,0.92,0.45,7.55,0,0,0,n/a,(no distinct commit)
+7. Public URLs / Swagger,0.62,4.36,0.00,0.00,4.98,0,0,0,n/a,(live kubectl)
+8. Trigger deploy workflow,0.00,2.85,0.87,0.00,3.72,0,0,0,n/a,(gh API dispatch)
+9. Merge to master,0.00,2.18,0.71,0.00,2.89,0,0,0,n/a,(merge)
+TOTAL,20.41,82.84,6.27,11.99,121.52,1536,119,1655,,
+CODING ITEMS 1-5 ONLY,17.51,69.55,5.35,9.98,102.39,1536,119,1655,0.062,
+
+SECTION 2 — PER COMMIT DETAIL (git line stats)
+Commit,Date,Work Item,Subject,Files,Insertions,Deletions,Lines Changed
+14a3897,2026-07-13,1. Continue feature work,"Add search, latency percentiles, memory autoscaling, and Postgres backing",72,1459,75,1534
+604a7ff,2026-07-13,2. IBM Cloud deploy setup,Target new IKS cluster and rework ingress for IBM Cloud,4,22,19,41
+6d7c68f,2026-07-13,2. IBM Cloud deploy setup,Target Default resource group for IKS deploy,2,6,2,8
+d5cdd4c,2026-07-13,2. IBM Cloud deploy setup,Fix Docker image builds: use version-agnostic jar glob,4,4,4,8
+58afcaa,2026-07-13,3. Search-500 / ingress fix,"Fix product search 500: build LIKE pattern in Java, not SQL CONCAT",3,22,14,36
+c40396a,2026-07-13,3. Search-500 / ingress fix,Fix product search 500 on PostgreSQL: cast IS NULL params,1,2,2,4
+b6ecf9a,2026-07-14,4. Gemini provider switch,Support OpenAI-compatible providers; point agent at Gemini,3,14,2,16
+787e268,2026-07-14,5. Agent UI blank-screen fix,Fix agent UI blank screen over HTTP: guard crypto.randomUUID,1,7,1,8
+
+SECTION 3 — TOKEN USAGE & PRICING
+Metric,Input Tokens,Output Tokens,Cache Write Tokens,Cache Read Tokens,Cost ($)
+2026-07-13 (yesterday),22991,537325,5658904,145206771,121.52
+Session total (incl. 07-12),206723,1143489,7766917,266684192,211.51
+Pricing per 1M (Opus 4.8) - Input,,,,,5.00
+Pricing per 1M (Opus 4.8) - Output,,,,,25.00
+Pricing per 1M (Opus 4.8) - Cache write 5m,,,,,6.25
+Pricing per 1M (Opus 4.8) - Cache read,,,,,0.50
+
+NOTES
+"Cost attributed per turn from tool usage; phases: Scan=Read/Grep/Glob/WebFetch, Diagnose=analysis/advising commands, Fix=Edit/Write, Build&Upload=git/gh/CI dispatch."
+"Lines Changed = insertions + deletions (git churn). Item 6 had no distinct commit in the window. Items 7-9 were ops/merge with no committed code, so cost-per-line is n/a."
+"Cost per line is high for small fixes that needed heavy diagnosis (item 5: 1-line crypto fix) and low for large clean feature generation (item 1)."

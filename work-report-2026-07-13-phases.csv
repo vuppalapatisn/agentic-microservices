@@ -1,0 +1,35 @@
+Work Item,Phase,Cost USD
+1. Continue feature work,Diagnose / find error & guide,14.66
+1. Continue feature work,Fix the bug (code edits),0.23
+1. Continue feature work,Build & upload to GitHub,2.65
+2. IBM Cloud deploy setup,Scan & understand code,9.85
+2. IBM Cloud deploy setup,Diagnose / find error & guide,24.22
+2. IBM Cloud deploy setup,Fix the bug (code edits),3.45
+2. IBM Cloud deploy setup,Build & upload to GitHub,2.63
+3. Search-500 / ingress fix,Scan & understand code,3.99
+3. Search-500 / ingress fix,Diagnose / find error & guide,17.84
+3. Search-500 / ingress fix,Fix the bug (code edits),0.33
+3. Search-500 / ingress fix,Build & upload to GitHub,1.69
+4. Gemini provider switch,Scan & understand code,1.45
+4. Gemini provider switch,Diagnose / find error & guide,6.43
+4. Gemini provider switch,Fix the bug (code edits),1.02
+4. Gemini provider switch,Build & upload to GitHub,1.72
+5. Agent UI blank-screen fix,Scan & understand code,2.22
+5. Agent UI blank-screen fix,Diagnose / find error & guide,6.40
+5. Agent UI blank-screen fix,Fix the bug (code edits),0.32
+5. Agent UI blank-screen fix,Build & upload to GitHub,1.29
+6. GH Actions Node20 fix,Scan & understand code,2.28
+6. GH Actions Node20 fix,Diagnose / find error & guide,3.90
+6. GH Actions Node20 fix,Fix the bug (code edits),0.92
+6. GH Actions Node20 fix,Build & upload to GitHub,0.45
+7. Public URLs / Swagger,Scan & understand code,0.62
+7. Public URLs / Swagger,Diagnose / find error & guide,4.36
+8. Trigger deploy workflow,Diagnose / find error & guide,2.85
+8. Trigger deploy workflow,Fix the bug (code edits),0.87
+9. Merge to master,Diagnose / find error & guide,2.18
+9. Merge to master,Fix the bug (code edits),0.71
+PHASE TOTAL,Scan & understand code,20.41
+PHASE TOTAL,Diagnose / find error & guide,82.84
+PHASE TOTAL,Fix the bug (code edits),6.27
+PHASE TOTAL,Build & upload to GitHub,11.99
+GRAND TOTAL,2026-07-13,121.52

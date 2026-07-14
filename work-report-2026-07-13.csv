@@ -1,0 +1,19 @@
+Section,Item,Input Tokens,Output Tokens,Cache Write Tokens,Cache Read Tokens,Cost USD
+Token Usage,2026-07-12 (evening),183732,606164,2108013,121477421,89.99
+Token Usage,2026-07-13 (yesterday),22991,537325,5658904,145206771,121.52
+Token Usage,Session total,206723,1143489,7766917,266684192,211.51
+Cost Per Work Item (2026-07-13),1. Continue Postgres/catalog feature work + open PR,,,,,17.54
+Cost Per Work Item (2026-07-13),2. IBM Cloud (IKS) deploy: planning / cluster config / login / K8s secrets,,,,,32.43
+Cost Per Work Item (2026-07-13),3. Product-search 500 / ingress troubleshooting -> search fix (c40396a 58afcaa),,,,,30.92
+Cost Per Work Item (2026-07-13),4. Gemini / OpenAI-compatible provider switch + deploy monitor (b6ecf9a),,,,,10.62
+Cost Per Work Item (2026-07-13),5. Agent UI blank-screen fix - crypto.randomUUID guard (787e268),,,,,10.23
+Cost Per Work Item (2026-07-13),6. GitHub Actions Node 20 deprecation fix + PR,,,,,7.56
+Cost Per Work Item (2026-07-13),7. Public access URLs (Prometheus / Grafana / LoadBalancer exposure),,,,,5.96
+Cost Per Work Item (2026-07-13),8. Trigger GitHub Actions deploy workflow,,,,,3.72
+Cost Per Work Item (2026-07-13),9. Merge / push to master,,,,,2.89
+Cost Per Work Item (2026-07-13),10. Swagger endpoint lookup,,,,,0.66
+Cost Per Work Item (2026-07-13),Day total (2026-07-13),,,,,121.52
+Pricing (Opus 4.8 per 1M tokens),Input,,,,,5.00
+Pricing (Opus 4.8 per 1M tokens),Output,,,,,25.00
+Pricing (Opus 4.8 per 1M tokens),Cache write (5m),,,,,6.25
+Pricing (Opus 4.8 per 1M tokens),Cache read,,,,,0.50
